@@ -50,4 +50,17 @@ void main() {
       'SegmentSwitchEvent(up 1200->2400kbps, pos: 30000ms)',
     );
   });
+
+  test('PlaybackErrorEvent formats a readable summary', () {
+    final event = PlaybackErrorEvent(
+      timestamp: DateTime.utc(2026, 4, 22, 10, 33),
+      position: const Duration(seconds: 3),
+      errorDescription: 'network failure',
+    );
+
+    expect(
+      event.toString(),
+      'PlaybackErrorEvent(pos: 3000ms, error: network failure)',
+    );
+  });
 }
