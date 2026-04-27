@@ -16,6 +16,7 @@ import 'utils/ring_buffer.dart';
 /// ```dart
 /// final telemetry = VideoTelemetry.wrap(controller);
 /// // your player works exactly as before
+/// telemetry.dispose(); // call in widget dispose()
 /// ```
 class VideoTelemetry {
   VideoTelemetry._(
@@ -94,6 +95,24 @@ class VideoTelemetry {
     _lastValue = current;
     if (previous == null) return;
     // Metric logic added in subsequent phases.
+  }
+
+  /// Detaches from the controller and closes all streams. Safe to call
+  /// multiple times.
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _pollTimer?.cancel();
+    _snapshotTimer?.cancel();
+    try {
+      _controller.removeListener(_onValueChanged);
+    } catch (_) {}
+    _stallSC.close();
+    _ttffSC.close();
+    _segmentSC.close();
+    _errorSC.close();
+    _snapshotSC.close();
+    _debugLog('disposed');
   }
 
   // Public streams
