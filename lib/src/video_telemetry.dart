@@ -33,6 +33,12 @@ class VideoTelemetry {
   bool _disposed = false;
   VideoPlayerValue? _lastValue;
 
+  // Phase 6 - TTFF
+  bool _wrappedWhilePlaying = false;
+  bool _hasFirstFrame = false;
+  DateTime? _playStartedAt;
+  DateTime? _firstFrameAt;
+
   Timer? _pollTimer;
   Timer? _snapshotTimer;
 
@@ -94,7 +100,27 @@ class VideoTelemetry {
     final previous = _lastValue;
     _lastValue = current;
     if (previous == null) return;
-    // Metric logic added in subsequent phases.
+    if (!current.isInitialized) return;
+
+    // Play-start timestamp
+    if (current.isPlaying && !previous.isPlaying && _playStartedAt == null) {
+      _playStartedAt = DateTime.now();
+      _debugLog('first play() detected');
+    }
+
+    // TTFF
+    if (!_hasFirstFrame &&
+        !_wrappedWhilePlaying &&
+        _playStartedAt != null &&
+        current.isPlaying &&
+        current.position > Duration.zero &&
+        !current.isBuffering) {
+      _hasFirstFrame = true;
+      _firstFrameAt = DateTime.now();
+      final ttff = _firstFrameAt!.difference(_playStartedAt!);
+      _emit(_ttffSC, ttff);
+      _debugLog('TTFF: ${ttff.inMilliseconds}ms');
+    }
   }
 
   /// Detaches from the controller and closes all streams. Safe to call
@@ -125,7 +151,13 @@ class VideoTelemetry {
 
   // Metrics (stubs - filled in per phase)
 
-  Duration? get timeToFirstFrame => null; // Phase 6
+  Duration? get timeToFirstFrame {
+    if (!_hasFirstFrame || _playStartedAt == null || _firstFrameAt == null) {
+      return null;
+    }
+    return _firstFrameAt!.difference(_playStartedAt!);
+  }
+
   bool get ttffAvailable => true;
   int get stallCount => 0; // Phase 7
   Duration get totalStallDuration => Duration.zero;
