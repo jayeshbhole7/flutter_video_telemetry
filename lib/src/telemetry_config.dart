@@ -10,19 +10,7 @@ class TelemetryConfig {
     this.stallHistoryCapacity = 50,
     this.segmentSwitchHistoryCapacity = 20,
     this.enableDebugLogging = false,
-  }) : assert(
-         minimumStallDuration >= Duration.zero,
-         'minimumStallDuration must be non-negative',
-       ),
-       assert(
-         pollingInterval > Duration.zero,
-         'pollingInterval must be positive',
-       ),
-       assert(
-         seekJumpThreshold > Duration.zero,
-         'seekJumpThreshold must be positive',
-       ),
-       assert(stallHistoryCapacity > 0, 'stallHistoryCapacity must be > 0'),
+  }) : assert(stallHistoryCapacity > 0, 'stallHistoryCapacity must be > 0'),
        assert(
          segmentSwitchHistoryCapacity > 0,
          'segmentSwitchHistoryCapacity must be > 0',
