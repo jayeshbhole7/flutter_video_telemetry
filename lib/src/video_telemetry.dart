@@ -33,6 +33,12 @@ class VideoTelemetry {
   bool _disposed = false;
   VideoPlayerValue? _lastValue;
 
+  // Phase 6 - TTFF
+  bool _wrappedWhilePlaying = false;
+  bool _hasFirstFrame = false;
+  DateTime? _playStartedAt;
+  DateTime? _firstFrameAt;
+
   Timer? _pollTimer;
   Timer? _snapshotTimer;
 
@@ -67,6 +73,13 @@ class VideoTelemetry {
 
   void _attach() {
     _lastValue = _controller.value;
+
+    if (_controller.value.isPlaying) {
+      _wrappedWhilePlaying = true;
+      _playStartedAt = DateTime.now();
+      _debugLog('wrapped while playing - TTFF unavailable');
+    }
+
     _controller.addListener(_onValueChanged);
 
     _pollTimer = Timer.periodic(_config.pollingInterval, (_) {
@@ -94,7 +107,27 @@ class VideoTelemetry {
     final previous = _lastValue;
     _lastValue = current;
     if (previous == null) return;
-    // Metric logic added in subsequent phases.
+    if (!current.isInitialized) return;
+
+    // Play-start timestamp
+    if (current.isPlaying && !previous.isPlaying && _playStartedAt == null) {
+      _playStartedAt = DateTime.now();
+      _debugLog('first play() detected');
+    }
+
+    // TTFF
+    if (!_hasFirstFrame &&
+        !_wrappedWhilePlaying &&
+        _playStartedAt != null &&
+        current.isPlaying &&
+        current.position > Duration.zero &&
+        !current.isBuffering) {
+      _hasFirstFrame = true;
+      _firstFrameAt = DateTime.now();
+      final ttff = _firstFrameAt!.difference(_playStartedAt!);
+      _emit(_ttffSC, ttff);
+      _debugLog('TTFF: ${ttff.inMilliseconds}ms');
+    }
   }
 
   /// Detaches from the controller and closes all streams. Safe to call
@@ -123,10 +156,27 @@ class VideoTelemetry {
   Stream<PlaybackErrorEvent> get errorStream => _errorSC.stream;
   Stream<TelemetrySnapshot> get snapshotStream => _snapshotSC.stream;
 
+  StreamSubscription<Duration> onFirstFrame(void Function(Duration) callback) {
+    final sub = firstFrameStream.listen(callback);
+    if (_hasFirstFrame && timeToFirstFrame != null) {
+      final ttff = timeToFirstFrame!;
+      Future.microtask(() {
+        if (!_disposed) callback(ttff);
+      });
+    }
+    return sub;
+  }
+
   // Metrics (stubs - filled in per phase)
 
-  Duration? get timeToFirstFrame => null; // Phase 6
-  bool get ttffAvailable => true;
+  Duration? get timeToFirstFrame {
+    if (!_hasFirstFrame || _playStartedAt == null || _firstFrameAt == null) {
+      return null;
+    }
+    return _firstFrameAt!.difference(_playStartedAt!);
+  }
+
+  bool get ttffAvailable => !_wrappedWhilePlaying;
   int get stallCount => 0; // Phase 7
   Duration get totalStallDuration => Duration.zero;
   double get rebufferingRatio => 0.0; // Phase 9
