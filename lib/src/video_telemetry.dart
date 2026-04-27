@@ -156,6 +156,17 @@ class VideoTelemetry {
   Stream<PlaybackErrorEvent> get errorStream => _errorSC.stream;
   Stream<TelemetrySnapshot> get snapshotStream => _snapshotSC.stream;
 
+  StreamSubscription<Duration> onFirstFrame(void Function(Duration) callback) {
+    final sub = firstFrameStream.listen(callback);
+    if (_hasFirstFrame && timeToFirstFrame != null) {
+      final ttff = timeToFirstFrame!;
+      Future.microtask(() {
+        if (!_disposed) callback(ttff);
+      });
+    }
+    return sub;
+  }
+
   // Metrics (stubs - filled in per phase)
 
   Duration? get timeToFirstFrame {
