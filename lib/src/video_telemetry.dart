@@ -73,6 +73,13 @@ class VideoTelemetry {
 
   void _attach() {
     _lastValue = _controller.value;
+
+    if (_controller.value.isPlaying) {
+      _wrappedWhilePlaying = true;
+      _playStartedAt = DateTime.now();
+      _debugLog('wrapped while playing - TTFF unavailable');
+    }
+
     _controller.addListener(_onValueChanged);
 
     _pollTimer = Timer.periodic(_config.pollingInterval, (_) {
@@ -158,7 +165,7 @@ class VideoTelemetry {
     return _firstFrameAt!.difference(_playStartedAt!);
   }
 
-  bool get ttffAvailable => true;
+  bool get ttffAvailable => !_wrappedWhilePlaying;
   int get stallCount => 0; // Phase 7
   Duration get totalStallDuration => Duration.zero;
   double get rebufferingRatio => 0.0; // Phase 9
