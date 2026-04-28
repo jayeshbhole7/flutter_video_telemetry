@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:video_player/video_player.dart';
 import 'package:video_telemetry/video_telemetry.dart';
 
 void main() {
@@ -111,4 +112,99 @@ void main() {
       'stallDuration: 900ms, rebuffering: 5.00%, seeks: 2)',
     );
   });
+
+  test('VideoTelemetry detects stalls and tracks totals', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        minimumStallDuration: Duration(milliseconds: 5),
+        pollingInterval: Duration(hours: 1),
+      ),
+    );
+    final stalls = <StallEvent>[];
+    final sub = telemetry.onStall(stalls.add);
+    addTearDown(() async {
+      await sub.cancel();
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: false);
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(milliseconds: 1),
+    );
+    controller.value = _playerValue(
+      isPlaying: true,
+      isBuffering: true,
+      position: const Duration(milliseconds: 250),
+    );
+
+    expect(telemetry.isCurrentlyStalling, isTrue);
+
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(milliseconds: 250),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(telemetry.isCurrentlyStalling, isFalse);
+    expect(telemetry.stallCount, 1);
+    expect(telemetry.stallHistory, hasLength(1));
+    expect(stalls, hasLength(1));
+    expect(stalls.single.index, 1);
+    expect(stalls.single.position, const Duration(milliseconds: 250));
+    expect(
+      telemetry.totalStallDuration.inMilliseconds,
+      greaterThanOrEqualTo(5),
+    );
+    expect(telemetry.averageStallDuration, telemetry.totalStallDuration);
+  });
+
+  test('VideoTelemetry ignores micro-stalls', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        minimumStallDuration: Duration(seconds: 30),
+        pollingInterval: Duration(hours: 1),
+      ),
+    );
+    final stalls = <StallEvent>[];
+    final sub = telemetry.onStall(stalls.add);
+    addTearDown(() async {
+      await sub.cancel();
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: true, isBuffering: true);
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+    controller.value = _playerValue(isPlaying: true);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(telemetry.isCurrentlyStalling, isFalse);
+    expect(telemetry.stallCount, 0);
+    expect(telemetry.totalStallDuration, Duration.zero);
+    expect(telemetry.averageStallDuration, Duration.zero);
+    expect(telemetry.stallHistory, isEmpty);
+    expect(stalls, isEmpty);
+  });
+}
+
+VideoPlayerValue _playerValue({
+  required bool isPlaying,
+  bool isBuffering = false,
+  Duration position = Duration.zero,
+}) {
+  return VideoPlayerValue(
+    duration: const Duration(minutes: 1),
+    isInitialized: true,
+    isPlaying: isPlaying,
+    isBuffering: isBuffering,
+    position: position,
+  );
 }

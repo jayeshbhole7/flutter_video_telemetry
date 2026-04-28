@@ -1,8 +1,7 @@
-/// Describes a quality or segment switch event.
+/// quality/segment switch event.
 ///
-/// The `video_player` package does not expose HLS or DASH segment metadata
-/// directly. These events can be reported manually by an app integration or
-/// inferred by higher-level telemetry logic.
+/// `video_player` hides hls/dash bits, so callers can report this manually
+/// or let later code guess. hacky fix for now.
 class SegmentSwitchEvent {
   const SegmentSwitchEvent({
     required this.timestamp,
@@ -15,37 +14,37 @@ class SegmentSwitchEvent {
     this.reason,
   });
 
-  /// Wall-clock time of the switch.
+  /// wall-clock switch time.
   final DateTime timestamp;
 
-  /// Playback position at switch time.
+  /// playback pos at switch time.
   final Duration position;
 
-  /// Whether this event was inferred rather than explicitly reported.
+  /// guessed instead of reported.
   final bool isEstimated;
 
-  /// Outgoing bitrate in kilobits per second, or null if unknown.
+  /// old bitrate, if we know it.
   final int? fromBitrateKbps;
 
-  /// Incoming bitrate in kilobits per second, or null if unknown.
+  /// new bitrate, if we know it.
   final int? toBitrateKbps;
 
-  /// Outgoing resolution string, for example `1280x720`, or null if unknown.
+  /// old res, like `1280x720`.
   final String? fromResolution;
 
-  /// Incoming resolution string, for example `1920x1080`, or null if unknown.
+  /// new res, like `1920x1080`.
   final String? toResolution;
 
-  /// Optional human-readable reason for the switch.
+  /// quick reason, when available.
   final String? reason;
 
-  /// True if this was an upgrade to a higher bitrate.
+  /// bitrate went up.
   bool get isUpgrade =>
       fromBitrateKbps != null &&
       toBitrateKbps != null &&
       toBitrateKbps! > fromBitrateKbps!;
 
-  /// True if this was a downgrade to a lower bitrate.
+  /// bitrate went down.
   bool get isDowngrade =>
       fromBitrateKbps != null &&
       toBitrateKbps != null &&

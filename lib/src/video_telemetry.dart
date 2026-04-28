@@ -10,13 +10,12 @@ import 'models/telemetry_snapshot.dart';
 import 'telemetry_config.dart';
 import 'utils/ring_buffer.dart';
 
-/// Attaches to a [VideoPlayerController] and measures real playback
-/// performance without interfering with playback.
+/// wraps a [VideoPlayerController] and tracks playback metrics.
 ///
 /// ```dart
 /// final telemetry = VideoTelemetry.wrap(controller);
-/// // your player works exactly as before
-/// telemetry.dispose(); // call in widget dispose()
+/// // player still does its thing
+/// telemetry.dispose(); // clean it up in dispose()
 /// ```
 class VideoTelemetry {
   VideoTelemetry._(
@@ -33,16 +32,22 @@ class VideoTelemetry {
   bool _disposed = false;
   VideoPlayerValue? _lastValue;
 
-  // Phase 6 - TTFF
+  // phase 6 - ttff
   bool _wrappedWhilePlaying = false;
   bool _hasFirstFrame = false;
   DateTime? _playStartedAt;
   DateTime? _firstFrameAt;
 
+  // phase 7 - stall bits
+  bool _isStalling = false;
+  DateTime? _stallStartedAt;
+  int _stallCount = 0;
+  Duration _totalStallDuration = Duration.zero;
+
   Timer? _pollTimer;
   Timer? _snapshotTimer;
 
-  // History buffers - capacity-bounded so long streams don't leak memory.
+  // bounded history so long sessions don't balloon.
   late final RingBuffer<StallEvent> _stallHistory = RingBuffer(
     _config.stallHistoryCapacity,
   );
@@ -50,18 +55,16 @@ class VideoTelemetry {
     _config.segmentSwitchHistoryCapacity,
   );
 
-  // Stream controllers - all broadcast so multiple listeners are supported.
+  // broadcast streams; more than one listener is fine.
   final _stallSC = StreamController<StallEvent>.broadcast();
   final _ttffSC = StreamController<Duration>.broadcast();
   final _segmentSC = StreamController<SegmentSwitchEvent>.broadcast();
   final _errorSC = StreamController<PlaybackErrorEvent>.broadcast();
   final _snapshotSC = StreamController<TelemetrySnapshot>.broadcast();
 
-  // Factory
+  // factory
 
-  /// Wraps [controller] with telemetry.
-  ///
-  /// The controller may be uninitialized, paused, or already playing.
+  /// wraps [controller] with telemetry.
   static VideoTelemetry wrap(
     VideoPlayerController controller, {
     TelemetryConfig config = const TelemetryConfig(),
@@ -69,7 +72,7 @@ class VideoTelemetry {
     return VideoTelemetry._(controller, config: config);
   }
 
-  // Lifecycle
+  // lifecycle
 
   void _attach() {
     _lastValue = _controller.value;
@@ -109,13 +112,13 @@ class VideoTelemetry {
     if (previous == null) return;
     if (!current.isInitialized) return;
 
-    // Play-start timestamp
+    // first play timestamp
     if (current.isPlaying && !previous.isPlaying && _playStartedAt == null) {
       _playStartedAt = DateTime.now();
       _debugLog('first play() detected');
     }
 
-    // TTFF
+    // ttff
     if (!_hasFirstFrame &&
         !_wrappedWhilePlaying &&
         _playStartedAt != null &&
@@ -128,10 +131,39 @@ class VideoTelemetry {
       _emit(_ttffSC, ttff);
       _debugLog('TTFF: ${ttff.inMilliseconds}ms');
     }
+
+    // stall entry
+    if (current.isPlaying && current.isBuffering && !_isStalling) {
+      _isStalling = true;
+      _stallStartedAt = DateTime.now();
+      _debugLog('stall started at ${current.position.inMilliseconds}ms');
+    }
+
+    // stall exit
+    if (_isStalling && !current.isBuffering) {
+      final duration = DateTime.now().difference(_stallStartedAt!);
+      _isStalling = false;
+      _stallStartedAt = null;
+
+      if (duration >= _config.minimumStallDuration) {
+        _stallCount++;
+        _totalStallDuration += duration;
+        final event = StallEvent(
+          timestamp: DateTime.now(),
+          position: current.position,
+          duration: duration,
+          index: _stallCount,
+        );
+        _stallHistory.add(event);
+        _emit(_stallSC, event);
+        _debugLog('stall #$_stallCount ended: ${duration.inMilliseconds}ms');
+      } else {
+        _debugLog('micro-stall ignored: ${duration.inMilliseconds}ms');
+      }
+    }
   }
 
-  /// Detaches from the controller and closes all streams. Safe to call
-  /// multiple times.
+  /// detach and close streams; safe to call twice.
   void dispose() {
     if (_disposed) return;
     _disposed = true;
@@ -148,7 +180,7 @@ class VideoTelemetry {
     _debugLog('disposed');
   }
 
-  // Public streams
+  // streams
 
   Stream<StallEvent> get stallStream => _stallSC.stream;
   Stream<Duration> get firstFrameStream => _ttffSC.stream;
@@ -167,7 +199,10 @@ class VideoTelemetry {
     return sub;
   }
 
-  // Metrics (stubs - filled in per phase)
+  StreamSubscription<StallEvent> onStall(void Function(StallEvent) callback) =>
+      stallStream.listen(callback);
+
+  // metrics
 
   Duration? get timeToFirstFrame {
     if (!_hasFirstFrame || _playStartedAt == null || _firstFrameAt == null) {
@@ -177,13 +212,19 @@ class VideoTelemetry {
   }
 
   bool get ttffAvailable => !_wrappedWhilePlaying;
-  int get stallCount => 0; // Phase 7
-  Duration get totalStallDuration => Duration.zero;
-  double get rebufferingRatio => 0.0; // Phase 9
-  Duration get averageStallDuration => Duration.zero;
-  int get seekCount => 0; // Phase 8
+  int get stallCount => _stallCount;
+  Duration get totalStallDuration => _totalStallDuration;
+  double get rebufferingRatio => 0.0; // phase 9
+  Duration get averageStallDuration {
+    if (_stallCount == 0) return Duration.zero;
+    return Duration(
+      microseconds: _totalStallDuration.inMicroseconds ~/ _stallCount,
+    );
+  }
+
+  int get seekCount => 0; // phase 8
   int get segmentSwitchCount => 0;
-  bool get isCurrentlyStalling => false;
+  bool get isCurrentlyStalling => _isStalling;
   List<StallEvent> get stallHistory => _stallHistory.toList();
   List<SegmentSwitchEvent> get segmentSwitchHistory => _segmentHistory.toList();
 
@@ -201,7 +242,7 @@ class VideoTelemetry {
     segmentSwitchHistory: segmentSwitchHistory,
   );
 
-  // Internal helpers
+  // tiny helpers
 
   void _emit<T>(StreamController<T> sc, T event) {
     if (!sc.isClosed) sc.add(event);

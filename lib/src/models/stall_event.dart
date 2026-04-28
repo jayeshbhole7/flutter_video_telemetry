@@ -1,9 +1,7 @@
-/// Describes a single buffer stall event.
+/// one buffer stall.
 ///
-/// A stall is a period where `VideoPlayerController` reports playback as
-/// active while also buffering, indicating the decoder is waiting for data.
-/// Stalls caused by explicit seeks are excluded by higher-level telemetry
-/// logic.
+/// playing + buffering means the player is stuck waiting for data.
+/// seek cleanup comes later; refactor this later if it gets weird.
 class StallEvent {
   const StallEvent({
     required this.timestamp,
@@ -12,16 +10,16 @@ class StallEvent {
     required this.index,
   });
 
-  /// Wall-clock time when the stall ended and playback resumed.
+  /// wall-clock time when playback came back.
   final DateTime timestamp;
 
-  /// Playback position at the moment the stall ended.
+  /// playback pos when the stall ended.
   final Duration position;
 
-  /// Total duration of the stall.
+  /// how long it stalled.
   final Duration duration;
 
-  /// 1-based ordinal of this stall in the current session.
+  /// 1-based stall number for this session.
   final int index;
 
   @override
