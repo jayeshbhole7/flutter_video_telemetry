@@ -45,6 +45,7 @@ class VideoTelemetry {
   Duration _totalStallDuration = Duration.zero;
 
   // phase 8 - seek bits
+  bool _isSeekBuffering = false;
   int _seekCount = 0;
 
   Timer? _pollTimer;
@@ -153,14 +154,28 @@ class VideoTelemetry {
 
     if (isSeek) {
       _seekCount++;
+      _isSeekBuffering = true;
+      if (_isStalling) {
+        _isStalling = false;
+        _stallStartedAt = null;
+        _debugLog('seek mid-stall - stall cancelled');
+      }
       _debugLog(
         'seek: ${previous.position.inMilliseconds}ms -> '
         '${current.position.inMilliseconds}ms',
       );
     }
 
+    if (_isSeekBuffering && !current.isBuffering) {
+      _isSeekBuffering = false;
+      _debugLog('seek buffering resolved');
+    }
+
     // stall entry
-    if (current.isPlaying && current.isBuffering && !_isStalling) {
+    if (current.isPlaying &&
+        current.isBuffering &&
+        !_isStalling &&
+        !_isSeekBuffering) {
       _isStalling = true;
       _stallStartedAt = DateTime.now();
       _debugLog('stall started at ${current.position.inMilliseconds}ms');
