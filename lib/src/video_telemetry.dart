@@ -44,6 +44,9 @@ class VideoTelemetry {
   int _stallCount = 0;
   Duration _totalStallDuration = Duration.zero;
 
+  // phase 8 - seek bits
+  int _seekCount = 0;
+
   Timer? _pollTimer;
   Timer? _snapshotTimer;
 
@@ -130,6 +133,30 @@ class VideoTelemetry {
       final ttff = _firstFrameAt!.difference(_playStartedAt!);
       _emit(_ttffSC, ttff);
       _debugLog('TTFF: ${ttff.inMilliseconds}ms');
+    }
+
+    // seek detection
+    final positionDelta = current.position - previous.position;
+    final absPositionDelta = Duration(
+      microseconds: positionDelta.inMicroseconds.abs(),
+    );
+    final maxNormalDelta = Duration(
+      microseconds:
+          (_config.pollingInterval.inMicroseconds * current.playbackSpeed * 5)
+              .round(),
+    );
+    final isLoopReset = _detectLoopReset(previous, current);
+    final isSeek =
+        !isLoopReset &&
+        absPositionDelta > maxNormalDelta &&
+        absPositionDelta > _config.seekJumpThreshold;
+
+    if (isSeek) {
+      _seekCount++;
+      _debugLog(
+        'seek: ${previous.position.inMilliseconds}ms -> '
+        '${current.position.inMilliseconds}ms',
+      );
     }
 
     // stall entry
@@ -222,7 +249,7 @@ class VideoTelemetry {
     );
   }
 
-  int get seekCount => 0; // phase 8
+  int get seekCount => _seekCount;
   int get segmentSwitchCount => 0;
   bool get isCurrentlyStalling => _isStalling;
   List<StallEvent> get stallHistory => _stallHistory.toList();
@@ -246,6 +273,13 @@ class VideoTelemetry {
 
   void _emit<T>(StreamController<T> sc, T event) {
     if (!sc.isClosed) sc.add(event);
+  }
+
+  bool _detectLoopReset(VideoPlayerValue previous, VideoPlayerValue current) {
+    final duration = current.duration;
+    if (duration == Duration.zero) return false;
+    return previous.position >= duration * 0.95 &&
+        current.position <= duration * 0.05;
   }
 
   void _debugLog(String msg) {

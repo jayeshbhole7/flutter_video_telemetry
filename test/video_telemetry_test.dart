@@ -193,15 +193,70 @@ void main() {
     expect(telemetry.stallHistory, isEmpty);
     expect(stalls, isEmpty);
   });
+
+  test('VideoTelemetry counts big position jumps as seeks', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        pollingInterval: Duration(milliseconds: 100),
+      ),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: true);
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(seconds: 2),
+    );
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(milliseconds: 2100),
+    );
+
+    expect(telemetry.seekCount, 1);
+    expect(telemetry.snapshot.seekCount, 1);
+  });
+
+  test('VideoTelemetry ignores loop resets as seeks', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    controller.value = _playerValue(
+      isPlaying: true,
+      duration: const Duration(seconds: 10),
+      position: const Duration(milliseconds: 9800),
+    );
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        pollingInterval: Duration(milliseconds: 100),
+      ),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(
+      isPlaying: true,
+      duration: const Duration(seconds: 10),
+      position: const Duration(milliseconds: 100),
+    );
+
+    expect(telemetry.seekCount, 0);
+  });
 }
 
 VideoPlayerValue _playerValue({
   required bool isPlaying,
   bool isBuffering = false,
+  Duration duration = const Duration(minutes: 1),
   Duration position = Duration.zero,
 }) {
   return VideoPlayerValue(
-    duration: const Duration(minutes: 1),
+    duration: duration,
     isInitialized: true,
     isPlaying: isPlaying,
     isBuffering: isBuffering,
