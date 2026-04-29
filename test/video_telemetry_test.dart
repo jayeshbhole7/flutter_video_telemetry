@@ -321,6 +321,51 @@ void main() {
     expect(telemetry.isCurrentlyStalling, isFalse);
     expect(telemetry.stallCount, 0);
   });
+
+  test('VideoTelemetry tracks active play time', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(pollingInterval: Duration(hours: 1)),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: false);
+    controller.value = _playerValue(isPlaying: true);
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    controller.value = _playerValue(isPlaying: true, isBuffering: true);
+    final bufferedAt = telemetry.snapshot.effectivePlayDuration;
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    expect(bufferedAt.inMilliseconds, greaterThanOrEqualTo(5));
+    expect(telemetry.snapshot.effectivePlayDuration, bufferedAt);
+
+    controller.value = _playerValue(isPlaying: true);
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    expect(telemetry.snapshot.effectivePlayDuration, greaterThan(bufferedAt));
+  });
+
+  test('VideoTelemetry starts active time when wrapped mid-play', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    controller.value = _playerValue(isPlaying: true);
+    final telemetry = VideoTelemetry.wrap(controller);
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    expect(
+      telemetry.snapshot.effectivePlayDuration.inMilliseconds,
+      greaterThanOrEqualTo(5),
+    );
+  });
 }
 
 VideoPlayerValue _playerValue({

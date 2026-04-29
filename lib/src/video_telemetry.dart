@@ -48,6 +48,10 @@ class VideoTelemetry {
   bool _isSeekBuffering = false;
   int _seekCount = 0;
 
+  // phase 9 - active play window
+  Duration _activePlayDuration = Duration.zero;
+  DateTime? _activePlayWindowStart;
+
   Timer? _pollTimer;
   Timer? _snapshotTimer;
 
@@ -84,6 +88,9 @@ class VideoTelemetry {
     if (_controller.value.isPlaying) {
       _wrappedWhilePlaying = true;
       _playStartedAt = DateTime.now();
+      if (_controller.value.isInitialized && !_controller.value.isBuffering) {
+        _activePlayWindowStart = DateTime.now();
+      }
       _debugLog('wrapped while playing - TTFF unavailable');
     }
 
@@ -134,6 +141,21 @@ class VideoTelemetry {
       final ttff = _firstFrameAt!.difference(_playStartedAt!);
       _emit(_ttffSC, ttff);
       _debugLog('TTFF: ${ttff.inMilliseconds}ms');
+    }
+
+    // active play window
+    final wasActive = previous.isPlaying && !previous.isBuffering;
+    final isActive = current.isPlaying && !current.isBuffering;
+
+    if (wasActive && !isActive) {
+      if (_activePlayWindowStart != null) {
+        _activePlayDuration += DateTime.now().difference(
+          _activePlayWindowStart!,
+        );
+        _activePlayWindowStart = null;
+      }
+    } else if (!wasActive && isActive) {
+      _activePlayWindowStart = DateTime.now();
     }
 
     // seek detection
@@ -270,6 +292,12 @@ class VideoTelemetry {
   List<StallEvent> get stallHistory => _stallHistory.toList();
   List<SegmentSwitchEvent> get segmentSwitchHistory => _segmentHistory.toList();
 
+  Duration get _currentActivePlay {
+    if (_activePlayWindowStart == null) return _activePlayDuration;
+    return _activePlayDuration +
+        DateTime.now().difference(_activePlayWindowStart!);
+  }
+
   TelemetrySnapshot get snapshot => TelemetrySnapshot(
     capturedAt: DateTime.now(),
     stallCount: stallCount,
@@ -279,7 +307,7 @@ class VideoTelemetry {
     seekCount: seekCount,
     segmentSwitchCount: segmentSwitchCount,
     isCurrentlyStalling: isCurrentlyStalling,
-    effectivePlayDuration: Duration.zero,
+    effectivePlayDuration: _currentActivePlay,
     stallHistory: stallHistory,
     segmentSwitchHistory: segmentSwitchHistory,
   );
