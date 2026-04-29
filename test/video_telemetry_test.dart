@@ -366,6 +366,45 @@ void main() {
       greaterThanOrEqualTo(5),
     );
   });
+
+  test('VideoTelemetry computes rebuffering ratio', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        minimumStallDuration: Duration(milliseconds: 5),
+        pollingInterval: Duration(hours: 1),
+      ),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    expect(telemetry.rebufferingRatio, 0.0);
+
+    controller.value = _playerValue(isPlaying: false);
+    controller.value = _playerValue(isPlaying: true);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    controller.value = _playerValue(isPlaying: true, isBuffering: true);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    controller.value = _playerValue(isPlaying: true);
+    controller.value = _playerValue(isPlaying: false);
+    await Future<void>.delayed(Duration.zero);
+
+    final snapshot = telemetry.snapshot;
+    final expected =
+        telemetry.totalStallDuration.inMicroseconds /
+        (snapshot.effectivePlayDuration + telemetry.totalStallDuration)
+            .inMicroseconds;
+
+    expect(telemetry.stallCount, 1);
+    expect(snapshot.rebufferingRatio, closeTo(expected, 0.000001));
+    expect(snapshot.rebufferingRatio, greaterThan(0));
+    expect(snapshot.rebufferingRatio, lessThan(1));
+  });
 }
 
 VideoPlayerValue _playerValue({

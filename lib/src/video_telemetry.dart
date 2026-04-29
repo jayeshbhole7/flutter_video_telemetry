@@ -278,7 +278,13 @@ class VideoTelemetry {
   bool get ttffAvailable => !_wrappedWhilePlaying;
   int get stallCount => _stallCount;
   Duration get totalStallDuration => _totalStallDuration;
-  double get rebufferingRatio => 0.0; // phase 9
+  double get rebufferingRatio {
+    final active = _currentActivePlay;
+    final total = active + _totalStallDuration;
+    if (total == Duration.zero) return 0.0;
+    return _totalStallDuration.inMicroseconds / total.inMicroseconds;
+  }
+
   Duration get averageStallDuration {
     if (_stallCount == 0) return Duration.zero;
     return Duration(
