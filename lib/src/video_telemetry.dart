@@ -121,6 +121,18 @@ class VideoTelemetry {
     final previous = _lastValue;
     _lastValue = current;
     if (previous == null) return;
+
+    // error detection
+    if (current.hasError && !previous.hasError) {
+      final event = PlaybackErrorEvent(
+        timestamp: DateTime.now(),
+        position: current.position,
+        errorDescription: current.errorDescription,
+      );
+      _emit(_errorSC, event);
+      _debugLog('error: ${current.errorDescription}');
+    }
+
     if (!current.isInitialized) return;
 
     // first play timestamp
@@ -265,6 +277,10 @@ class VideoTelemetry {
 
   StreamSubscription<StallEvent> onStall(void Function(StallEvent) callback) =>
       stallStream.listen(callback);
+
+  StreamSubscription<PlaybackErrorEvent> onError(
+    void Function(PlaybackErrorEvent) callback,
+  ) => errorStream.listen(callback);
 
   // metrics
 

@@ -405,6 +405,26 @@ void main() {
     expect(snapshot.rebufferingRatio, greaterThan(0));
     expect(snapshot.rebufferingRatio, lessThan(1));
   });
+
+  test('VideoTelemetry emits playback errors on transitions', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(controller);
+    final errors = <PlaybackErrorEvent>[];
+    final sub = telemetry.onError(errors.add);
+    addTearDown(() async {
+      await sub.cancel();
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = VideoPlayerValue.erroneous('network died');
+    controller.value = VideoPlayerValue.erroneous('still dead');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(errors, hasLength(1));
+    expect(errors.single.position, Duration.zero);
+    expect(errors.single.errorDescription, 'network died');
+  });
 }
 
 VideoPlayerValue _playerValue({
