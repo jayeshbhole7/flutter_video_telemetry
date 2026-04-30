@@ -44,6 +44,14 @@ class VideoTelemetry {
   int _stallCount = 0;
   Duration _totalStallDuration = Duration.zero;
 
+  // phase 8 - seek bits
+  bool _isSeekBuffering = false;
+  int _seekCount = 0;
+
+  // phase 9 - active play window
+  Duration _activePlayDuration = Duration.zero;
+  DateTime? _activePlayWindowStart;
+
   Timer? _pollTimer;
   Timer? _snapshotTimer;
 
@@ -80,6 +88,9 @@ class VideoTelemetry {
     if (_controller.value.isPlaying) {
       _wrappedWhilePlaying = true;
       _playStartedAt = DateTime.now();
+      if (_controller.value.isInitialized && !_controller.value.isBuffering) {
+        _activePlayWindowStart = DateTime.now();
+      }
       _debugLog('wrapped while playing - TTFF unavailable');
     }
 
@@ -110,6 +121,18 @@ class VideoTelemetry {
     final previous = _lastValue;
     _lastValue = current;
     if (previous == null) return;
+
+    // error detection
+    if (current.hasError && !previous.hasError) {
+      final event = PlaybackErrorEvent(
+        timestamp: DateTime.now(),
+        position: current.position,
+        errorDescription: current.errorDescription,
+      );
+      _emit(_errorSC, event);
+      _debugLog('error: ${current.errorDescription}');
+    }
+
     if (!current.isInitialized) return;
 
     // first play timestamp
@@ -132,8 +155,61 @@ class VideoTelemetry {
       _debugLog('TTFF: ${ttff.inMilliseconds}ms');
     }
 
+    // active play window
+    final wasActive = previous.isPlaying && !previous.isBuffering;
+    final isActive = current.isPlaying && !current.isBuffering;
+
+    if (wasActive && !isActive) {
+      if (_activePlayWindowStart != null) {
+        _activePlayDuration += DateTime.now().difference(
+          _activePlayWindowStart!,
+        );
+        _activePlayWindowStart = null;
+      }
+    } else if (!wasActive && isActive) {
+      _activePlayWindowStart = DateTime.now();
+    }
+
+    // seek detection
+    final positionDelta = current.position - previous.position;
+    final absPositionDelta = Duration(
+      microseconds: positionDelta.inMicroseconds.abs(),
+    );
+    final maxNormalDelta = Duration(
+      microseconds:
+          (_config.pollingInterval.inMicroseconds * current.playbackSpeed * 5)
+              .round(),
+    );
+    final isLoopReset = _detectLoopReset(previous, current);
+    final isSeek =
+        !isLoopReset &&
+        absPositionDelta > maxNormalDelta &&
+        absPositionDelta > _config.seekJumpThreshold;
+
+    if (isSeek) {
+      _seekCount++;
+      _isSeekBuffering = true;
+      if (_isStalling) {
+        _isStalling = false;
+        _stallStartedAt = null;
+        _debugLog('seek mid-stall - stall cancelled');
+      }
+      _debugLog(
+        'seek: ${previous.position.inMilliseconds}ms -> '
+        '${current.position.inMilliseconds}ms',
+      );
+    }
+
+    if (_isSeekBuffering && !current.isBuffering) {
+      _isSeekBuffering = false;
+      _debugLog('seek buffering resolved');
+    }
+
     // stall entry
-    if (current.isPlaying && current.isBuffering && !_isStalling) {
+    if (current.isPlaying &&
+        current.isBuffering &&
+        !_isStalling &&
+        !_isSeekBuffering) {
       _isStalling = true;
       _stallStartedAt = DateTime.now();
       _debugLog('stall started at ${current.position.inMilliseconds}ms');
@@ -202,6 +278,10 @@ class VideoTelemetry {
   StreamSubscription<StallEvent> onStall(void Function(StallEvent) callback) =>
       stallStream.listen(callback);
 
+  StreamSubscription<PlaybackErrorEvent> onError(
+    void Function(PlaybackErrorEvent) callback,
+  ) => errorStream.listen(callback);
+
   // metrics
 
   Duration? get timeToFirstFrame {
@@ -214,7 +294,13 @@ class VideoTelemetry {
   bool get ttffAvailable => !_wrappedWhilePlaying;
   int get stallCount => _stallCount;
   Duration get totalStallDuration => _totalStallDuration;
-  double get rebufferingRatio => 0.0; // phase 9
+  double get rebufferingRatio {
+    final active = _currentActivePlay;
+    final total = active + _totalStallDuration;
+    if (total == Duration.zero) return 0.0;
+    return _totalStallDuration.inMicroseconds / total.inMicroseconds;
+  }
+
   Duration get averageStallDuration {
     if (_stallCount == 0) return Duration.zero;
     return Duration(
@@ -222,11 +308,17 @@ class VideoTelemetry {
     );
   }
 
-  int get seekCount => 0; // phase 8
+  int get seekCount => _seekCount;
   int get segmentSwitchCount => 0;
   bool get isCurrentlyStalling => _isStalling;
   List<StallEvent> get stallHistory => _stallHistory.toList();
   List<SegmentSwitchEvent> get segmentSwitchHistory => _segmentHistory.toList();
+
+  Duration get _currentActivePlay {
+    if (_activePlayWindowStart == null) return _activePlayDuration;
+    return _activePlayDuration +
+        DateTime.now().difference(_activePlayWindowStart!);
+  }
 
   TelemetrySnapshot get snapshot => TelemetrySnapshot(
     capturedAt: DateTime.now(),
@@ -237,7 +329,7 @@ class VideoTelemetry {
     seekCount: seekCount,
     segmentSwitchCount: segmentSwitchCount,
     isCurrentlyStalling: isCurrentlyStalling,
-    effectivePlayDuration: Duration.zero,
+    effectivePlayDuration: _currentActivePlay,
     stallHistory: stallHistory,
     segmentSwitchHistory: segmentSwitchHistory,
   );
@@ -246,6 +338,13 @@ class VideoTelemetry {
 
   void _emit<T>(StreamController<T> sc, T event) {
     if (!sc.isClosed) sc.add(event);
+  }
+
+  bool _detectLoopReset(VideoPlayerValue previous, VideoPlayerValue current) {
+    final duration = current.duration;
+    if (duration == Duration.zero) return false;
+    return previous.position >= duration * 0.95 &&
+        current.position <= duration * 0.05;
   }
 
   void _debugLog(String msg) {

@@ -193,15 +193,248 @@ void main() {
     expect(telemetry.stallHistory, isEmpty);
     expect(stalls, isEmpty);
   });
+
+  test('VideoTelemetry counts big position jumps as seeks', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        pollingInterval: Duration(milliseconds: 100),
+      ),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: true);
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(seconds: 2),
+    );
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(milliseconds: 2100),
+    );
+
+    expect(telemetry.seekCount, 1);
+    expect(telemetry.snapshot.seekCount, 1);
+  });
+
+  test('VideoTelemetry ignores loop resets as seeks', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    controller.value = _playerValue(
+      isPlaying: true,
+      duration: const Duration(seconds: 10),
+      position: const Duration(milliseconds: 9800),
+    );
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        pollingInterval: Duration(milliseconds: 100),
+      ),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(
+      isPlaying: true,
+      duration: const Duration(seconds: 10),
+      position: const Duration(milliseconds: 100),
+    );
+
+    expect(telemetry.seekCount, 0);
+  });
+
+  test('VideoTelemetry skips stalls during seek buffering', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        minimumStallDuration: Duration(milliseconds: 1),
+        pollingInterval: Duration(milliseconds: 100),
+      ),
+    );
+    final stalls = <StallEvent>[];
+    final sub = telemetry.onStall(stalls.add);
+    addTearDown(() async {
+      await sub.cancel();
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: true);
+    controller.value = _playerValue(
+      isPlaying: true,
+      isBuffering: true,
+      position: const Duration(seconds: 2),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(seconds: 2),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(telemetry.seekCount, 1);
+    expect(telemetry.isCurrentlyStalling, isFalse);
+    expect(telemetry.stallCount, 0);
+    expect(stalls, isEmpty);
+  });
+
+  test('VideoTelemetry cancels stalls when a seek lands', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        minimumStallDuration: Duration(milliseconds: 1),
+        pollingInterval: Duration(milliseconds: 100),
+      ),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: true);
+    controller.value = _playerValue(
+      isPlaying: true,
+      isBuffering: true,
+      position: const Duration(milliseconds: 100),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+
+    controller.value = _playerValue(
+      isPlaying: true,
+      isBuffering: true,
+      position: const Duration(seconds: 3),
+    );
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(seconds: 3),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(telemetry.seekCount, 1);
+    expect(telemetry.isCurrentlyStalling, isFalse);
+    expect(telemetry.stallCount, 0);
+  });
+
+  test('VideoTelemetry tracks active play time', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(pollingInterval: Duration(hours: 1)),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = _playerValue(isPlaying: false);
+    controller.value = _playerValue(isPlaying: true);
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    controller.value = _playerValue(isPlaying: true, isBuffering: true);
+    final bufferedAt = telemetry.snapshot.effectivePlayDuration;
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    expect(bufferedAt.inMilliseconds, greaterThanOrEqualTo(5));
+    expect(telemetry.snapshot.effectivePlayDuration, bufferedAt);
+
+    controller.value = _playerValue(isPlaying: true);
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    expect(telemetry.snapshot.effectivePlayDuration, greaterThan(bufferedAt));
+  });
+
+  test('VideoTelemetry starts active time when wrapped mid-play', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    controller.value = _playerValue(isPlaying: true);
+    final telemetry = VideoTelemetry.wrap(controller);
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    await Future<void>.delayed(const Duration(milliseconds: 8));
+
+    expect(
+      telemetry.snapshot.effectivePlayDuration.inMilliseconds,
+      greaterThanOrEqualTo(5),
+    );
+  });
+
+  test('VideoTelemetry computes rebuffering ratio', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        minimumStallDuration: Duration(milliseconds: 5),
+        pollingInterval: Duration(hours: 1),
+      ),
+    );
+    addTearDown(() async {
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    expect(telemetry.rebufferingRatio, 0.0);
+
+    controller.value = _playerValue(isPlaying: false);
+    controller.value = _playerValue(isPlaying: true);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    controller.value = _playerValue(isPlaying: true, isBuffering: true);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    controller.value = _playerValue(isPlaying: true);
+    controller.value = _playerValue(isPlaying: false);
+    await Future<void>.delayed(Duration.zero);
+
+    final snapshot = telemetry.snapshot;
+    final expected =
+        telemetry.totalStallDuration.inMicroseconds /
+        (snapshot.effectivePlayDuration + telemetry.totalStallDuration)
+            .inMicroseconds;
+
+    expect(telemetry.stallCount, 1);
+    expect(snapshot.rebufferingRatio, closeTo(expected, 0.000001));
+    expect(snapshot.rebufferingRatio, greaterThan(0));
+    expect(snapshot.rebufferingRatio, lessThan(1));
+  });
+
+  test('VideoTelemetry emits playback errors on transitions', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    final telemetry = VideoTelemetry.wrap(controller);
+    final errors = <PlaybackErrorEvent>[];
+    final sub = telemetry.onError(errors.add);
+    addTearDown(() async {
+      await sub.cancel();
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    controller.value = VideoPlayerValue.erroneous('network died');
+    controller.value = VideoPlayerValue.erroneous('still dead');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(errors, hasLength(1));
+    expect(errors.single.position, Duration.zero);
+    expect(errors.single.errorDescription, 'network died');
+  });
 }
 
 VideoPlayerValue _playerValue({
   required bool isPlaying,
   bool isBuffering = false,
+  Duration duration = const Duration(minutes: 1),
   Duration position = Duration.zero,
 }) {
   return VideoPlayerValue(
-    duration: const Duration(minutes: 1),
+    duration: duration,
     isInitialized: true,
     isPlaying: isPlaying,
     isBuffering: isBuffering,
