@@ -52,6 +52,9 @@ class VideoTelemetry {
   Duration _activePlayDuration = Duration.zero;
   DateTime? _activePlayWindowStart;
 
+  // phase 11 - manual segment switches
+  int _segmentSwitchCount = 0;
+
   Timer? _pollTimer;
   Timer? _snapshotTimer;
 
@@ -256,6 +259,30 @@ class VideoTelemetry {
     _debugLog('disposed');
   }
 
+  /// report a quality switch from the native player layer.
+  void reportSegmentSwitch({
+    int? fromBitrateKbps,
+    int? toBitrateKbps,
+    String? fromResolution,
+    String? toResolution,
+    String? reason,
+  }) {
+    if (_disposed) return;
+    _segmentSwitchCount++;
+    final event = SegmentSwitchEvent(
+      timestamp: DateTime.now(),
+      position: _safePosition,
+      fromBitrateKbps: fromBitrateKbps,
+      toBitrateKbps: toBitrateKbps,
+      fromResolution: fromResolution,
+      toResolution: toResolution,
+      reason: reason,
+      isEstimated: false,
+    );
+    _segmentHistory.add(event);
+    _emit(_segmentSC, event);
+  }
+
   // streams
 
   Stream<StallEvent> get stallStream => _stallSC.stream;
@@ -281,6 +308,10 @@ class VideoTelemetry {
   StreamSubscription<PlaybackErrorEvent> onError(
     void Function(PlaybackErrorEvent) callback,
   ) => errorStream.listen(callback);
+
+  StreamSubscription<SegmentSwitchEvent> onSegmentSwitch(
+    void Function(SegmentSwitchEvent) callback,
+  ) => segmentSwitchStream.listen(callback);
 
   // metrics
 
@@ -309,7 +340,7 @@ class VideoTelemetry {
   }
 
   int get seekCount => _seekCount;
-  int get segmentSwitchCount => 0;
+  int get segmentSwitchCount => _segmentSwitchCount;
   bool get isCurrentlyStalling => _isStalling;
   List<StallEvent> get stallHistory => _stallHistory.toList();
   List<SegmentSwitchEvent> get segmentSwitchHistory => _segmentHistory.toList();
@@ -345,6 +376,14 @@ class VideoTelemetry {
     if (duration == Duration.zero) return false;
     return previous.position >= duration * 0.95 &&
         current.position <= duration * 0.05;
+  }
+
+  Duration get _safePosition {
+    try {
+      return _controller.value.position;
+    } catch (_) {
+      return Duration.zero;
+    }
   }
 
   void _debugLog(String msg) {

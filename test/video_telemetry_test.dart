@@ -425,6 +425,43 @@ void main() {
     expect(errors.single.position, Duration.zero);
     expect(errors.single.errorDescription, 'network died');
   });
+
+  test('VideoTelemetry reports manual segment switches', () async {
+    final controller = VideoPlayerController.asset('fake.mp4');
+    controller.value = _playerValue(
+      isPlaying: true,
+      position: const Duration(seconds: 12),
+    );
+    final telemetry = VideoTelemetry.wrap(controller);
+    final switches = <SegmentSwitchEvent>[];
+    final sub = telemetry.onSegmentSwitch(switches.add);
+    addTearDown(() async {
+      await sub.cancel();
+      telemetry.dispose();
+      await controller.dispose();
+    });
+
+    telemetry.reportSegmentSwitch(
+      fromBitrateKbps: 1200,
+      toBitrateKbps: 2400,
+      fromResolution: '1280x720',
+      toResolution: '1920x1080',
+      reason: 'abr',
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(telemetry.segmentSwitchCount, 1);
+    expect(telemetry.segmentSwitchHistory, hasLength(1));
+    expect(telemetry.snapshot.segmentSwitchCount, 1);
+    expect(switches, hasLength(1));
+    expect(switches.single.position, const Duration(seconds: 12));
+    expect(switches.single.fromBitrateKbps, 1200);
+    expect(switches.single.toBitrateKbps, 2400);
+    expect(switches.single.fromResolution, '1280x720');
+    expect(switches.single.toResolution, '1920x1080');
+    expect(switches.single.reason, 'abr');
+    expect(switches.single.isEstimated, isFalse);
+  });
 }
 
 VideoPlayerValue _playerValue({
