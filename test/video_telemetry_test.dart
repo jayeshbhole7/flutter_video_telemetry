@@ -2,479 +2,599 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_telemetry/video_telemetry.dart';
 
-void main() {
-  test('StallEvent compares by timestamp and index', () {
-    final timestamp = DateTime.utc(2026, 4, 22, 10, 30);
-    final first = StallEvent(
-      timestamp: timestamp,
-      position: const Duration(seconds: 12),
-      duration: const Duration(milliseconds: 750),
-      index: 1,
-    );
-    final second = StallEvent(
-      timestamp: timestamp,
-      position: const Duration(seconds: 13),
-      duration: const Duration(seconds: 2),
-      index: 1,
-    );
+// fake controller, no platform channel junk.
+class FakeVideoPlayerController extends VideoPlayerController {
+  FakeVideoPlayerController()
+    : super.networkUrl(Uri.parse('https://fake.test/video.mp4'));
 
-    expect(first, second);
-    expect(first.hashCode, second.hashCode);
-    expect(
-      first.toString(),
-      'StallEvent(#1, duration: 750ms, position: 12000ms)',
-    );
-  });
+  VideoPlayerValue _fakeValue = const VideoPlayerValue(
+    duration: Duration(minutes: 5),
+  );
 
-  test('SegmentSwitchEvent reports upgrade and downgrade state', () {
-    final upgrade = SegmentSwitchEvent(
-      timestamp: DateTime.utc(2026, 4, 22, 10, 31),
-      position: const Duration(seconds: 30),
-      isEstimated: false,
-      fromBitrateKbps: 1200,
-      toBitrateKbps: 2400,
-    );
-    final downgrade = SegmentSwitchEvent(
-      timestamp: DateTime.utc(2026, 4, 22, 10, 32),
-      position: const Duration(seconds: 45),
-      isEstimated: true,
-      fromBitrateKbps: 2400,
-      toBitrateKbps: 800,
-    );
+  @override
+  VideoPlayerValue get value => _fakeValue;
 
-    expect(upgrade.isUpgrade, isTrue);
-    expect(upgrade.isDowngrade, isFalse);
-    expect(downgrade.isUpgrade, isFalse);
-    expect(downgrade.isDowngrade, isTrue);
-    expect(
-      upgrade.toString(),
-      'SegmentSwitchEvent(up 1200->2400kbps, pos: 30000ms)',
-    );
-  });
+  void setValue(VideoPlayerValue next) {
+    _fakeValue = next;
+    notifyListeners();
+  }
 
-  test('PlaybackErrorEvent formats a readable summary', () {
-    final event = PlaybackErrorEvent(
-      timestamp: DateTime.utc(2026, 4, 22, 10, 33),
-      position: const Duration(seconds: 3),
-      errorDescription: 'network failure',
-    );
-
-    expect(
-      event.toString(),
-      'PlaybackErrorEvent(pos: 3000ms, error: network failure)',
-    );
-  });
-
-  test('TelemetrySnapshot stores the provided metrics and histories', () {
-    final stall = StallEvent(
-      timestamp: DateTime.utc(2026, 4, 22, 10, 34),
-      position: const Duration(seconds: 15),
-      duration: const Duration(milliseconds: 900),
-      index: 1,
-    );
-    final switchEvent = SegmentSwitchEvent(
-      timestamp: DateTime.utc(2026, 4, 22, 10, 35),
-      position: const Duration(seconds: 18),
-      isEstimated: false,
-      fromBitrateKbps: 1000,
-      toBitrateKbps: 1500,
-    );
-    final snapshot = TelemetrySnapshot(
-      capturedAt: DateTime.utc(2026, 4, 22, 10, 36),
-      timeToFirstFrame: const Duration(milliseconds: 450),
-      stallCount: 1,
-      totalStallDuration: const Duration(milliseconds: 900),
-      rebufferingRatio: 0.05,
-      averageStallDuration: const Duration(milliseconds: 900),
-      seekCount: 2,
-      segmentSwitchCount: 1,
-      isCurrentlyStalling: false,
-      effectivePlayDuration: const Duration(minutes: 2),
-      stallHistory: <StallEvent>[stall],
-      segmentSwitchHistory: <SegmentSwitchEvent>[switchEvent],
-    );
-
-    expect(snapshot.capturedAt, DateTime.utc(2026, 4, 22, 10, 36));
-    expect(snapshot.timeToFirstFrame, const Duration(milliseconds: 450));
-    expect(snapshot.stallCount, 1);
-    expect(snapshot.totalStallDuration, const Duration(milliseconds: 900));
-    expect(snapshot.rebufferingRatio, 0.05);
-    expect(snapshot.averageStallDuration, const Duration(milliseconds: 900));
-    expect(snapshot.seekCount, 2);
-    expect(snapshot.segmentSwitchCount, 1);
-    expect(snapshot.isCurrentlyStalling, isFalse);
-    expect(snapshot.effectivePlayDuration, const Duration(minutes: 2));
-    expect(snapshot.stallHistory, <StallEvent>[stall]);
-    expect(snapshot.segmentSwitchHistory, <SegmentSwitchEvent>[switchEvent]);
-    expect(
-      snapshot.toString(),
-      'TelemetrySnapshot(ttff: 450ms, stalls: 1, '
-      'stallDuration: 900ms, rebuffering: 5.00%, seeks: 2)',
-    );
-  });
-
-  test('VideoTelemetry detects stalls and tracks totals', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(
-        minimumStallDuration: Duration(milliseconds: 5),
-        pollingInterval: Duration(hours: 1),
+  void setPlaying({bool buffering = false, Duration? position}) {
+    setValue(
+      value.copyWith(
+        isInitialized: true,
+        isPlaying: true,
+        isBuffering: buffering,
+        position: position ?? value.position,
       ),
     );
-    final stalls = <StallEvent>[];
-    final sub = telemetry.onStall(stalls.add);
-    addTearDown(() async {
-      await sub.cancel();
-      telemetry.dispose();
-      await controller.dispose();
-    });
+  }
 
-    controller.value = _playerValue(isPlaying: false);
-    controller.value = _playerValue(
-      isPlaying: true,
-      position: const Duration(milliseconds: 1),
-    );
-    controller.value = _playerValue(
-      isPlaying: true,
-      isBuffering: true,
-      position: const Duration(milliseconds: 250),
-    );
-
-    expect(telemetry.isCurrentlyStalling, isTrue);
-
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-
-    controller.value = _playerValue(
-      isPlaying: true,
-      position: const Duration(milliseconds: 250),
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    expect(telemetry.isCurrentlyStalling, isFalse);
-    expect(telemetry.stallCount, 1);
-    expect(telemetry.stallHistory, hasLength(1));
-    expect(stalls, hasLength(1));
-    expect(stalls.single.index, 1);
-    expect(stalls.single.position, const Duration(milliseconds: 250));
-    expect(
-      telemetry.totalStallDuration.inMilliseconds,
-      greaterThanOrEqualTo(5),
-    );
-    expect(telemetry.averageStallDuration, telemetry.totalStallDuration);
-  });
-
-  test('VideoTelemetry ignores micro-stalls', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(
-        minimumStallDuration: Duration(seconds: 30),
-        pollingInterval: Duration(hours: 1),
+  void setPaused({Duration? position}) {
+    setValue(
+      value.copyWith(
+        isInitialized: true,
+        isPlaying: false,
+        isBuffering: false,
+        position: position ?? value.position,
       ),
     );
-    final stalls = <StallEvent>[];
-    final sub = telemetry.onStall(stalls.add);
-    addTearDown(() async {
-      await sub.cancel();
-      telemetry.dispose();
-      await controller.dispose();
-    });
+  }
 
-    controller.value = _playerValue(isPlaying: true, isBuffering: true);
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-    controller.value = _playerValue(isPlaying: true);
-    await Future<void>.delayed(Duration.zero);
+  void setBuffering() {
+    setValue(value.copyWith(isPlaying: true, isBuffering: true));
+  }
 
-    expect(telemetry.isCurrentlyStalling, isFalse);
-    expect(telemetry.stallCount, 0);
-    expect(telemetry.totalStallDuration, Duration.zero);
-    expect(telemetry.averageStallDuration, Duration.zero);
-    expect(telemetry.stallHistory, isEmpty);
-    expect(stalls, isEmpty);
-  });
-
-  test('VideoTelemetry counts big position jumps as seeks', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(
-        pollingInterval: Duration(milliseconds: 100),
+  void setResumed({Duration? position}) {
+    setValue(
+      value.copyWith(
+        isPlaying: true,
+        isBuffering: false,
+        position: position ?? value.position,
       ),
     );
-    addTearDown(() async {
-      telemetry.dispose();
-      await controller.dispose();
-    });
+  }
 
-    controller.value = _playerValue(isPlaying: true);
-    controller.value = _playerValue(
-      isPlaying: true,
-      position: const Duration(seconds: 2),
-    );
-    controller.value = _playerValue(
-      isPlaying: true,
-      position: const Duration(milliseconds: 2100),
-    );
+  void setError(String description) {
+    setValue(VideoPlayerValue.erroneous(description));
+  }
 
-    expect(telemetry.seekCount, 1);
-    expect(telemetry.snapshot.seekCount, 1);
-  });
+  @override
+  Future<void> initialize() async {}
 
-  test('VideoTelemetry ignores loop resets as seeks', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    controller.value = _playerValue(
-      isPlaying: true,
-      duration: const Duration(seconds: 10),
-      position: const Duration(milliseconds: 9800),
-    );
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(
-        pollingInterval: Duration(milliseconds: 100),
-      ),
-    );
-    addTearDown(() async {
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    controller.value = _playerValue(
-      isPlaying: true,
-      duration: const Duration(seconds: 10),
-      position: const Duration(milliseconds: 100),
-    );
-
-    expect(telemetry.seekCount, 0);
-  });
-
-  test('VideoTelemetry skips stalls during seek buffering', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(
-        minimumStallDuration: Duration(milliseconds: 1),
-        pollingInterval: Duration(milliseconds: 100),
-      ),
-    );
-    final stalls = <StallEvent>[];
-    final sub = telemetry.onStall(stalls.add);
-    addTearDown(() async {
-      await sub.cancel();
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    controller.value = _playerValue(isPlaying: true);
-    controller.value = _playerValue(
-      isPlaying: true,
-      isBuffering: true,
-      position: const Duration(seconds: 2),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-    controller.value = _playerValue(
-      isPlaying: true,
-      position: const Duration(seconds: 2),
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    expect(telemetry.seekCount, 1);
-    expect(telemetry.isCurrentlyStalling, isFalse);
-    expect(telemetry.stallCount, 0);
-    expect(stalls, isEmpty);
-  });
-
-  test('VideoTelemetry cancels stalls when a seek lands', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(
-        minimumStallDuration: Duration(milliseconds: 1),
-        pollingInterval: Duration(milliseconds: 100),
-      ),
-    );
-    addTearDown(() async {
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    controller.value = _playerValue(isPlaying: true);
-    controller.value = _playerValue(
-      isPlaying: true,
-      isBuffering: true,
-      position: const Duration(milliseconds: 100),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 5));
-
-    controller.value = _playerValue(
-      isPlaying: true,
-      isBuffering: true,
-      position: const Duration(seconds: 3),
-    );
-    controller.value = _playerValue(
-      isPlaying: true,
-      position: const Duration(seconds: 3),
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    expect(telemetry.seekCount, 1);
-    expect(telemetry.isCurrentlyStalling, isFalse);
-    expect(telemetry.stallCount, 0);
-  });
-
-  test('VideoTelemetry tracks active play time', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(pollingInterval: Duration(hours: 1)),
-    );
-    addTearDown(() async {
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    controller.value = _playerValue(isPlaying: false);
-    controller.value = _playerValue(isPlaying: true);
-    await Future<void>.delayed(const Duration(milliseconds: 8));
-
-    controller.value = _playerValue(isPlaying: true, isBuffering: true);
-    final bufferedAt = telemetry.snapshot.effectivePlayDuration;
-    await Future<void>.delayed(const Duration(milliseconds: 8));
-
-    expect(bufferedAt.inMilliseconds, greaterThanOrEqualTo(5));
-    expect(telemetry.snapshot.effectivePlayDuration, bufferedAt);
-
-    controller.value = _playerValue(isPlaying: true);
-    await Future<void>.delayed(const Duration(milliseconds: 8));
-
-    expect(telemetry.snapshot.effectivePlayDuration, greaterThan(bufferedAt));
-  });
-
-  test('VideoTelemetry starts active time when wrapped mid-play', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    controller.value = _playerValue(isPlaying: true);
-    final telemetry = VideoTelemetry.wrap(controller);
-    addTearDown(() async {
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    await Future<void>.delayed(const Duration(milliseconds: 8));
-
-    expect(
-      telemetry.snapshot.effectivePlayDuration.inMilliseconds,
-      greaterThanOrEqualTo(5),
-    );
-  });
-
-  test('VideoTelemetry computes rebuffering ratio', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(
-      controller,
-      config: const TelemetryConfig(
-        minimumStallDuration: Duration(milliseconds: 5),
-        pollingInterval: Duration(hours: 1),
-      ),
-    );
-    addTearDown(() async {
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    expect(telemetry.rebufferingRatio, 0.0);
-
-    controller.value = _playerValue(isPlaying: false);
-    controller.value = _playerValue(isPlaying: true);
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-
-    controller.value = _playerValue(isPlaying: true, isBuffering: true);
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-
-    controller.value = _playerValue(isPlaying: true);
-    controller.value = _playerValue(isPlaying: false);
-    await Future<void>.delayed(Duration.zero);
-
-    final snapshot = telemetry.snapshot;
-    final expected =
-        telemetry.totalStallDuration.inMicroseconds /
-        (snapshot.effectivePlayDuration + telemetry.totalStallDuration)
-            .inMicroseconds;
-
-    expect(telemetry.stallCount, 1);
-    expect(snapshot.rebufferingRatio, closeTo(expected, 0.000001));
-    expect(snapshot.rebufferingRatio, greaterThan(0));
-    expect(snapshot.rebufferingRatio, lessThan(1));
-  });
-
-  test('VideoTelemetry emits playback errors on transitions', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    final telemetry = VideoTelemetry.wrap(controller);
-    final errors = <PlaybackErrorEvent>[];
-    final sub = telemetry.onError(errors.add);
-    addTearDown(() async {
-      await sub.cancel();
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    controller.value = VideoPlayerValue.erroneous('network died');
-    controller.value = VideoPlayerValue.erroneous('still dead');
-    await Future<void>.delayed(Duration.zero);
-
-    expect(errors, hasLength(1));
-    expect(errors.single.position, Duration.zero);
-    expect(errors.single.errorDescription, 'network died');
-  });
-
-  test('VideoTelemetry reports manual segment switches', () async {
-    final controller = VideoPlayerController.asset('fake.mp4');
-    controller.value = _playerValue(
-      isPlaying: true,
-      position: const Duration(seconds: 12),
-    );
-    final telemetry = VideoTelemetry.wrap(controller);
-    final switches = <SegmentSwitchEvent>[];
-    final sub = telemetry.onSegmentSwitch(switches.add);
-    addTearDown(() async {
-      await sub.cancel();
-      telemetry.dispose();
-      await controller.dispose();
-    });
-
-    telemetry.reportSegmentSwitch(
-      fromBitrateKbps: 1200,
-      toBitrateKbps: 2400,
-      fromResolution: '1280x720',
-      toResolution: '1920x1080',
-      reason: 'abr',
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    expect(telemetry.segmentSwitchCount, 1);
-    expect(telemetry.segmentSwitchHistory, hasLength(1));
-    expect(telemetry.snapshot.segmentSwitchCount, 1);
-    expect(switches, hasLength(1));
-    expect(switches.single.position, const Duration(seconds: 12));
-    expect(switches.single.fromBitrateKbps, 1200);
-    expect(switches.single.toBitrateKbps, 2400);
-    expect(switches.single.fromResolution, '1280x720');
-    expect(switches.single.toResolution, '1920x1080');
-    expect(switches.single.reason, 'abr');
-    expect(switches.single.isEstimated, isFalse);
-  });
+  @override
+  // ignore: must_call_super
+  Future<void> dispose() async {
+    notifyListeners();
+  }
 }
 
-VideoPlayerValue _playerValue({
-  required bool isPlaying,
+VideoPlayerValue _base({
+  bool isInitialized = true,
+  bool isPlaying = false,
   bool isBuffering = false,
-  Duration duration = const Duration(minutes: 1),
   Duration position = Duration.zero,
+  String? errorDescription,
 }) {
   return VideoPlayerValue(
-    duration: duration,
-    isInitialized: true,
+    duration: const Duration(minutes: 5),
+    isInitialized: isInitialized,
     isPlaying: isPlaying,
     isBuffering: isBuffering,
     position: position,
+    errorDescription: errorDescription,
   );
+}
+
+void main() {
+  late FakeVideoPlayerController controller;
+  late VideoTelemetry telemetry;
+
+  setUp(() {
+    controller = FakeVideoPlayerController();
+    controller.setValue(_base());
+    telemetry = VideoTelemetry.wrap(
+      controller,
+      config: const TelemetryConfig(
+        minimumStallDuration: Duration(milliseconds: 200),
+        seekJumpThreshold: Duration(milliseconds: 500),
+        enableDebugLogging: false,
+      ),
+    );
+  });
+
+  tearDown(() {
+    telemetry.dispose();
+  });
+
+  group('time-to-first-frame', () {
+    test('is null before play() is called', () {
+      expect(telemetry.timeToFirstFrame, isNull);
+    });
+
+    test('is null while buffering on startup', () {
+      controller.setPlaying(buffering: true);
+      expect(telemetry.timeToFirstFrame, isNull);
+    });
+
+    test('emits on firstFrameStream when first frame arrives', () async {
+      final ttffValues = <Duration>[];
+      final sub = telemetry.firstFrameStream.listen(ttffValues.add);
+      addTearDown(sub.cancel);
+
+      controller.setPlaying(position: Duration.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      controller.setResumed(position: const Duration(milliseconds: 100));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      expect(ttffValues, hasLength(1));
+      expect(ttffValues.first.inMilliseconds, greaterThan(0));
+    });
+
+    test('does not emit TTFF twice', () async {
+      final ttffValues = <Duration>[];
+      final sub = telemetry.firstFrameStream.listen(ttffValues.add);
+      addTearDown(sub.cancel);
+
+      controller.setPlaying(position: Duration.zero);
+      controller.setResumed(position: const Duration(milliseconds: 100));
+      controller.setResumed(position: const Duration(milliseconds: 200));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      expect(ttffValues, hasLength(1));
+    });
+
+    test('ttffAvailable is false when wrapped while playing', () {
+      final controller2 = FakeVideoPlayerController();
+      controller2.setValue(_base(isPlaying: true));
+      final t2 = VideoTelemetry.wrap(controller2);
+      addTearDown(t2.dispose);
+      addTearDown(controller2.dispose);
+
+      expect(t2.ttffAvailable, isFalse);
+      expect(t2.timeToFirstFrame, isNull);
+    });
+
+    test(
+      'onFirstFrame delivers cached value after first frame fires',
+      () async {
+        controller.setPlaying();
+        controller.setResumed(position: const Duration(milliseconds: 50));
+
+        await Future<void>.delayed(const Duration(milliseconds: 1));
+
+        final received = <Duration>[];
+        final sub = telemetry.onFirstFrame(received.add);
+        addTearDown(sub.cancel);
+        await Future<void>.microtask(() {});
+
+        expect(received, hasLength(1));
+      },
+    );
+  });
+
+  group('stall detection', () {
+    test('stallCount is 0 before any stall', () {
+      expect(telemetry.stallCount, 0);
+    });
+
+    test('detects a stall and emits StallEvent', () async {
+      final stalls = <StallEvent>[];
+      final sub = telemetry.stallStream.listen(stalls.add);
+      addTearDown(sub.cancel);
+
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 100));
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 200));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(stalls, hasLength(1));
+      expect(stalls.first.duration.inMilliseconds, greaterThanOrEqualTo(200));
+      expect(stalls.first.index, 1);
+      expect(telemetry.stallCount, 1);
+    });
+
+    test('ignores micro-stalls below minimumStallDuration', () async {
+      final stalls = <StallEvent>[];
+      final sub = telemetry.stallStream.listen(stalls.add);
+      addTearDown(sub.cancel);
+
+      controller.setPlaying();
+      controller.setBuffering();
+      controller.setResumed(position: const Duration(milliseconds: 50));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      expect(stalls, isEmpty);
+      expect(telemetry.stallCount, 0);
+    });
+
+    test('tracks multiple stalls', () async {
+      final stalls = <StallEvent>[];
+      final sub = telemetry.stallStream.listen(stalls.add);
+      addTearDown(sub.cancel);
+
+      for (var i = 1; i <= 3; i++) {
+        controller.setPlaying();
+        controller.setResumed(position: Duration(milliseconds: (i - 1) * 100));
+        controller.setBuffering();
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+        controller.setResumed(position: Duration(milliseconds: i * 100));
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      expect(stalls, hasLength(3));
+      expect(telemetry.stallCount, 3);
+      for (var i = 0; i < 3; i++) {
+        expect(stalls[i].index, i + 1);
+      }
+    });
+
+    test('totalStallDuration accumulates correctly', () async {
+      controller.setPlaying();
+
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      controller.setResumed(position: const Duration(milliseconds: 100));
+
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 200));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(
+        telemetry.totalStallDuration.inMilliseconds,
+        greaterThanOrEqualTo(450),
+      );
+    });
+
+    test('isCurrentlyStalling reflects live stall state', () {
+      controller.setPlaying();
+      expect(telemetry.isCurrentlyStalling, isFalse);
+
+      controller.setBuffering();
+      expect(telemetry.isCurrentlyStalling, isTrue);
+
+      controller.setResumed(position: const Duration(milliseconds: 100));
+    });
+
+    test('stall history capacity is respected', () async {
+      final limitedTelemetry = VideoTelemetry.wrap(
+        controller,
+        config: const TelemetryConfig(
+          stallHistoryCapacity: 3,
+          minimumStallDuration: Duration(milliseconds: 100),
+        ),
+      );
+      addTearDown(limitedTelemetry.dispose);
+
+      controller.setPlaying();
+
+      for (var i = 0; i < 5; i++) {
+        controller.setBuffering();
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        controller.setResumed(position: Duration(milliseconds: (i + 1) * 100));
+      }
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(limitedTelemetry.stallHistory.length, 3);
+      expect(limitedTelemetry.stallCount, 5);
+    });
+  });
+
+  group('seek detection', () {
+    test('counts explicit seeks', () {
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 400));
+
+      controller.setResumed(position: const Duration(seconds: 11));
+
+      expect(telemetry.seekCount, 1);
+    });
+
+    test('does not count normal playback advancement as a seek', () {
+      controller.setPlaying();
+      controller.setResumed(position: Duration.zero);
+      controller.setResumed(position: const Duration(milliseconds: 150));
+      controller.setResumed(position: const Duration(milliseconds: 300));
+
+      expect(telemetry.seekCount, 0);
+    });
+
+    test('seek-induced buffering is not counted as a stall', () async {
+      final stalls = <StallEvent>[];
+      final sub = telemetry.stallStream.listen(stalls.add);
+      addTearDown(sub.cancel);
+
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 400));
+
+      controller.setPlaying(
+        buffering: true,
+        position: const Duration(seconds: 30),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      controller.setResumed(position: const Duration(seconds: 30));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(stalls, isEmpty);
+      expect(telemetry.seekCount, 1);
+    });
+
+    test('stall after seek is counted as a new event', () async {
+      final stalls = <StallEvent>[];
+      final sub = telemetry.stallStream.listen(stalls.add);
+      addTearDown(sub.cancel);
+
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 400));
+
+      controller.setPlaying(
+        buffering: true,
+        position: const Duration(seconds: 30),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      controller.setResumed(position: const Duration(seconds: 30));
+
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      controller.setResumed(position: const Duration(milliseconds: 30100));
+
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      expect(stalls, hasLength(1));
+    });
+
+    test('backward seek increments seek count', () {
+      final seekController = FakeVideoPlayerController();
+      seekController.setValue(
+        _base(isPlaying: true, position: const Duration(milliseconds: 700)),
+      );
+      final seekTelemetry = VideoTelemetry.wrap(
+        seekController,
+        config: const TelemetryConfig(
+          seekJumpThreshold: Duration(milliseconds: 500),
+        ),
+      );
+      addTearDown(seekTelemetry.dispose);
+      addTearDown(seekController.dispose);
+
+      seekController.setResumed(position: Duration.zero);
+
+      expect(seekTelemetry.seekCount, 1);
+    });
+  });
+
+  group('loop detection', () {
+    test('loop reset is not counted as a seek', () {
+      final loopController = FakeVideoPlayerController();
+      loopController.setValue(
+        _base(
+          isPlaying: true,
+          position: const Duration(minutes: 4, seconds: 58),
+        ),
+      );
+      final loopTelemetry = VideoTelemetry.wrap(
+        loopController,
+        config: const TelemetryConfig(
+          seekJumpThreshold: Duration(milliseconds: 500),
+        ),
+      );
+      addTearDown(loopTelemetry.dispose);
+      addTearDown(loopController.dispose);
+
+      loopController.setResumed(position: const Duration(seconds: 1));
+
+      expect(loopTelemetry.seekCount, 0);
+    });
+  });
+
+  group('rebufferingRatio', () {
+    test('is 0.0 before any playback', () {
+      expect(telemetry.rebufferingRatio, 0.0);
+    });
+
+    test('is between 0 and 1 after a stall', () async {
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 1));
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      controller.setResumed(position: const Duration(milliseconds: 500));
+
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(telemetry.rebufferingRatio, inInclusiveRange(0.0, 1.0));
+    });
+  });
+
+  group('error handling', () {
+    test('fires on errorStream when controller has error', () async {
+      final errors = <PlaybackErrorEvent>[];
+      final sub = telemetry.errorStream.listen(errors.add);
+      addTearDown(sub.cancel);
+
+      controller.setError('Network timeout');
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(errors, hasLength(1));
+      expect(errors.first.errorDescription, contains('Network timeout'));
+    });
+
+    test('does not fire duplicate error events for same error state', () async {
+      final errors = <PlaybackErrorEvent>[];
+      final sub = telemetry.errorStream.listen(errors.add);
+      addTearDown(sub.cancel);
+
+      controller.setError('Error A');
+      controller.setError('Error A');
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(errors, hasLength(1));
+    });
+  });
+
+  group('segment switches', () {
+    test('manual reportSegmentSwitch increments count', () {
+      telemetry.reportSegmentSwitch(fromBitrateKbps: 800, toBitrateKbps: 2400);
+      expect(telemetry.segmentSwitchCount, 1);
+    });
+
+    test('fires on segmentSwitchStream', () async {
+      final events = <SegmentSwitchEvent>[];
+      final sub = telemetry.segmentSwitchStream.listen(events.add);
+      addTearDown(sub.cancel);
+
+      telemetry.reportSegmentSwitch(
+        fromBitrateKbps: 800,
+        toBitrateKbps: 2400,
+        reason: 'bandwidth increase',
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(events, hasLength(1));
+      expect(events.first.isUpgrade, isTrue);
+      expect(events.first.isEstimated, isFalse);
+    });
+  });
+
+  group('dispose', () {
+    test('is idempotent', () {
+      expect(() {
+        telemetry.dispose();
+        telemetry.dispose();
+        telemetry.dispose();
+      }, returnsNormally);
+    });
+
+    test('stops emitting events after dispose', () async {
+      final stalls = <StallEvent>[];
+      final sub = telemetry.stallStream.listen(
+        stalls.add,
+        onDone: () {},
+        cancelOnError: false,
+      );
+      addTearDown(sub.cancel);
+
+      telemetry.dispose();
+
+      controller.setPlaying();
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 100));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+      expect(stalls, isEmpty);
+    });
+
+    test('reportSegmentSwitch after dispose is a no-op', () {
+      telemetry.dispose();
+      expect(
+        () => telemetry.reportSegmentSwitch(fromBitrateKbps: 800),
+        returnsNormally,
+      );
+    });
+  });
+
+  group('snapshot', () {
+    test('snapshot reflects current metrics', () async {
+      controller.setPlaying();
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 100));
+
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      final snap = telemetry.snapshot;
+      expect(snap.stallCount, 1);
+      expect(snap.totalStallDuration.inMilliseconds, greaterThan(200));
+    });
+
+    test('snapshotStream fires periodically', () async {
+      final periodicTelemetry = VideoTelemetry.wrap(
+        controller,
+        config: const TelemetryConfig(
+          snapshotInterval: Duration(milliseconds: 50),
+        ),
+      );
+      addTearDown(periodicTelemetry.dispose);
+
+      final snapshots = <TelemetrySnapshot>[];
+      final sub = periodicTelemetry.snapshotStream.listen(snapshots.add);
+      addTearDown(sub.cancel);
+
+      await Future<void>.delayed(const Duration(milliseconds: 175));
+
+      expect(snapshots.length, greaterThanOrEqualTo(2));
+    });
+  });
+
+  group('averageStallDuration', () {
+    test('is zero when no stalls', () {
+      expect(telemetry.averageStallDuration, Duration.zero);
+    });
+
+    test('computes mean across multiple stalls', () async {
+      controller.setPlaying();
+
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 100));
+
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      controller.setResumed(position: const Duration(milliseconds: 200));
+
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      expect(
+        telemetry.averageStallDuration.inMilliseconds,
+        greaterThanOrEqualTo(300),
+      );
+    });
+  });
+  group('reset', () {
+  test('clears all metrics and histories', () async {
+    controller.setPlaying();
+    controller.setBuffering();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.setResumed(position: const Duration(seconds: 1));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    expect(telemetry.stallCount, 1);
+
+    telemetry.reset();
+
+    expect(telemetry.stallCount, 0);
+    expect(telemetry.totalStallDuration, Duration.zero);
+    expect(telemetry.seekCount, 0);
+    expect(telemetry.timeToFirstFrame, isNull);
+    expect(telemetry.stallHistory, isEmpty);
+  });
+
+  test('continues recording after reset', () async {
+    controller.setPlaying();
+    controller.setBuffering();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.setResumed(position: const Duration(seconds: 1));
+
+    telemetry.reset();
+
+    controller.setPlaying();
+    controller.setBuffering();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.setResumed(position: const Duration(seconds: 2));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    expect(telemetry.stallCount, 1); // only the post-reset stall
+  });
+});
 }
