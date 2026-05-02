@@ -561,5 +561,40 @@ void main() {
       );
     });
   });
-  
+  group('reset', () {
+  test('clears all metrics and histories', () async {
+    controller.setPlaying();
+    controller.setBuffering();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.setResumed(position: const Duration(seconds: 1));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    expect(telemetry.stallCount, 1);
+
+    telemetry.reset();
+
+    expect(telemetry.stallCount, 0);
+    expect(telemetry.totalStallDuration, Duration.zero);
+    expect(telemetry.seekCount, 0);
+    expect(telemetry.timeToFirstFrame, isNull);
+    expect(telemetry.stallHistory, isEmpty);
+  });
+
+  test('continues recording after reset', () async {
+    controller.setPlaying();
+    controller.setBuffering();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.setResumed(position: const Duration(seconds: 1));
+
+    telemetry.reset();
+
+    controller.setPlaying();
+    controller.setBuffering();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    controller.setResumed(position: const Duration(seconds: 2));
+    await Future<void>.delayed(const Duration(milliseconds: 1));
+
+    expect(telemetry.stallCount, 1); // only the post-reset stall
+  });
+});
 }

@@ -283,6 +283,27 @@ class VideoTelemetry {
     _emit(_segmentSC, event);
   }
 
+  void reset() {
+    if (_disposed) return;
+    _hasFirstFrame = false;
+    _wrappedWhilePlaying = false;
+    _isStalling = false;
+    _isSeekBuffering = false;
+    _stallCount = 0;
+    _totalStallDuration = Duration.zero;
+    _seekCount = 0;
+    _segmentSwitchCount = 0;
+    _activePlayDuration = Duration.zero;
+    _activePlayWindowStart = null;
+    _playStartedAt = null;
+    _firstFrameAt = null;
+    _stallStartedAt = null;
+    _lastValue = _controller.value;
+    _stallHistory.clear();
+    _segmentHistory.clear();
+    _debugLog('session reset');
+  }
+
   // streams
 
   Stream<StallEvent> get stallStream => _stallSC.stream;
