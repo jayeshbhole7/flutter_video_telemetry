@@ -1,4 +1,4 @@
-/// Configuration for [VideoTelemetry].
+/// Configuration for the telemetry wrapper.
 ///
 /// All fields have production-ready defaults. Override only what you need.
 class TelemetryConfig {
@@ -32,7 +32,7 @@ class TelemetryConfig {
   /// stalls. The effective threshold scales with playback speed.
   final Duration seekJumpThreshold;
 
-  /// When set, [VideoTelemetry.snapshotStream] emits at this interval.
+  /// When set, snapshotStream emits at this interval.
   /// Set to null to disable periodic snapshots.
   final Duration? snapshotInterval;
 
