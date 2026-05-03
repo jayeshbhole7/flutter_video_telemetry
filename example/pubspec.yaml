@@ -1,0 +1,14 @@
+name: video_telemetry_example
+description: Example application for the video_telemetry package.
+publish_to: none
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  video_player: ^2.8.0
+  video_telemetry:
+    path: ../

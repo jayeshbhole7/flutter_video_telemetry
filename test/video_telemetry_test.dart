@@ -470,7 +470,7 @@ void main() {
         telemetry.dispose();
         telemetry.dispose();
         telemetry.dispose();
-      }, returnsNormally);
+      }, returnsNormally,);
     });
 
     test('stops emitting events after dispose', () async {
