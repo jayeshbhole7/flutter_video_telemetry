@@ -96,9 +96,7 @@ void main() {
     telemetry = VideoTelemetry.wrap(
       controller,
       config: const TelemetryConfig(
-        minimumStallDuration: Duration(milliseconds: 200),
         seekJumpThreshold: Duration(milliseconds: 500),
-        enableDebugLogging: false,
       ),
     );
   });
