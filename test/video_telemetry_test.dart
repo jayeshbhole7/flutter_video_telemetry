@@ -96,9 +96,7 @@ void main() {
     telemetry = VideoTelemetry.wrap(
       controller,
       config: const TelemetryConfig(
-        minimumStallDuration: Duration(milliseconds: 200),
         seekJumpThreshold: Duration(milliseconds: 500),
-        enableDebugLogging: false,
       ),
     );
   });
@@ -472,7 +470,7 @@ void main() {
         telemetry.dispose();
         telemetry.dispose();
         telemetry.dispose();
-      }, returnsNormally);
+      }, returnsNormally,);
     });
 
     test('stops emitting events after dispose', () async {

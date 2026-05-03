@@ -1,4 +1,7 @@
+import 'package:meta/meta.dart';
+
 /// Describes a playback error surfaced by the underlying video player.
+@immutable
 class PlaybackErrorEvent {
   const PlaybackErrorEvent({
     required this.timestamp,

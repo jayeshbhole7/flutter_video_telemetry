@@ -1,7 +1,10 @@
+import 'package:meta/meta.dart';
+
 /// quality/segment switch event.
 ///
 /// `video_player` hides hls/dash bits, so callers can report this manually
 /// or let later code guess. hacky fix for now.
+@immutable
 class SegmentSwitchEvent {
   const SegmentSwitchEvent({
     required this.timestamp,

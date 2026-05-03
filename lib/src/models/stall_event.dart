@@ -1,7 +1,10 @@
+import 'package:meta/meta.dart';
+
 /// one buffer stall.
 ///
 /// playing + buffering means the player is stuck waiting for data.
 /// seek cleanup comes later; refactor this later if it gets weird.
+@immutable
 class StallEvent {
   const StallEvent({
     required this.timestamp,
