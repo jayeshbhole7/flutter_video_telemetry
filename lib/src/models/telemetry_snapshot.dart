@@ -1,10 +1,9 @@
-import 'stall_event.dart';
 import 'segment_switch_event.dart';
+import 'stall_event.dart';
 
 /// An immutable snapshot of all telemetry metrics at a point in time.
 ///
-/// Obtain via [VideoTelemetry.snapshot] or subscribe to
-/// [VideoTelemetry.snapshotStream] for periodic updates.
+/// Obtain via the telemetry instance's snapshot getter or snapshotStream.
 ///
 /// All duration fields are zero / null until the corresponding event occurs.
 class TelemetrySnapshot {
@@ -26,7 +25,7 @@ class TelemetrySnapshot {
   /// When this snapshot was captured.
   final DateTime capturedAt;
 
-  /// Time from [VideoPlayerController.play] to the first rendered frame.
+  /// Time from play to the first rendered frame.
   /// Null until the first frame has been rendered.
   final Duration? timeToFirstFrame;
 
@@ -55,10 +54,10 @@ class TelemetrySnapshot {
   /// Wall-clock time the video was actually playing (session – stalls).
   final Duration effectivePlayDuration;
 
-  /// Recent stall events (up to [TelemetryConfig.stallHistoryCapacity]).
+  /// Recent stall events, bounded by the configured stallHistoryCapacity.
   final List<StallEvent> stallHistory;
 
-  /// Recent segment switch events (up to [TelemetryConfig.segmentSwitchHistoryCapacity]).
+  /// Recent segment switch events, bounded by the configured segmentSwitchHistoryCapacity.
   final List<SegmentSwitchEvent> segmentSwitchHistory;
 
 

@@ -50,42 +50,41 @@ class _PlayerScreenState extends State<PlayerScreen> {
     _telemetry = VideoTelemetry.wrap(
       _controller,
       config: const TelemetryConfig(
-        minimumStallDuration: Duration(milliseconds: 200),
         snapshotInterval: Duration(seconds: 1),
         enableDebugLogging: true, // Disable in production
       ),
     );
 
-    // Register listeners 
+    // Register listeners
 
     _telemetry.onFirstFrame((ttff) {
-      _appendLog('🎬 First frame in ${ttff.inMilliseconds}ms');
+      _appendLog('[TTFF] First frame in ${ttff.inMilliseconds}ms');
     });
 
     _telemetry.onStall((event) {
       _appendLog(
-        '⏸ Stall #${event.index}: ${event.duration.inMilliseconds}ms '
+        '[STALL] #${event.index}: ${event.duration.inMilliseconds}ms '
         'at ${event.position.inSeconds}s',
       );
     });
 
     _telemetry.onSegmentSwitch((event) {
-      final dir = event.isUpgrade ? '↑' : '↓';
+      final dir = event.isUpgrade ? 'UP' : 'DOWN';
       _appendLog(
-        '$dir Quality switch: '
-        '${event.fromBitrateKbps ?? "?"}→${event.toBitrateKbps ?? "?"}kbps',
+        '[$dir] Quality switch: '
+        '${event.fromBitrateKbps ?? "?"}->${event.toBitrateKbps ?? "?"}kbps',
       );
     });
 
     _telemetry.onError((event) {
-      _appendLog('❌ Error: ${event.errorDescription}');
+      _appendLog('[ERROR] ${event.errorDescription}');
     });
 
     _telemetry.snapshotStream.listen((snap) {
       if (mounted) setState(() => _latest = snap);
     });
 
-    //  Initialize controller 
+    // Initialize controller
     _controller.initialize().then((_) {
       if (mounted) setState(() {});
     });
@@ -195,7 +194,7 @@ class _MetricsPanel extends StatelessWidget {
           children: [
             _Metric(
               label: 'TTFF',
-              value: ttff != null ? '${ttff.inMilliseconds}ms' : '—',
+              value: ttff != null ? '${ttff.inMilliseconds}ms' : '--',
             ),
             _Metric(
               label: 'Stalls',
@@ -230,7 +229,7 @@ class _MetricsPanel extends StatelessWidget {
             if (snapshot.isCurrentlyStalling)
               const _Metric(
                 label: 'Status',
-                value: '⏸ STALLING',
+                value: 'STALLING',
                 warning: true,
               ),
           ],
@@ -259,16 +258,16 @@ class _Metric extends StatelessWidget {
         Text(
           label,
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Colors.grey,
-              ),
+            color: Colors.grey,
+          ),
         ),
         Text(
           value,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: warning ? Colors.orange : null,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'monospace',
-              ),
+            color: warning ? Colors.orange : null,
+            fontWeight: FontWeight.bold,
+            fontFamily: 'monospace',
+          ),
         ),
       ],
     );
