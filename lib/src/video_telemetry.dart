@@ -374,6 +374,7 @@ class VideoTelemetry {
 
   TelemetrySnapshot get snapshot => TelemetrySnapshot(
     capturedAt: DateTime.now(),
+    timeToFirstFrame: timeToFirstFrame,
     stallCount: stallCount,
     totalStallDuration: totalStallDuration,
     rebufferingRatio: rebufferingRatio,
