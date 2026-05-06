@@ -562,9 +562,10 @@ void main() {
   group('reset', () {
   test('clears all metrics and histories', () async {
     controller.setPlaying();
+    controller.setResumed(position: const Duration(milliseconds: 100));
     controller.setBuffering();
     await Future<void>.delayed(const Duration(milliseconds: 300));
-    controller.setResumed(position: const Duration(seconds: 1));
+    controller.setResumed(position: const Duration(milliseconds: 200));
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
     expect(telemetry.stallCount, 1);
@@ -580,16 +581,18 @@ void main() {
 
   test('continues recording after reset', () async {
     controller.setPlaying();
+    controller.setResumed(position: const Duration(milliseconds: 100));
     controller.setBuffering();
     await Future<void>.delayed(const Duration(milliseconds: 300));
-    controller.setResumed(position: const Duration(seconds: 1));
+    controller.setResumed(position: const Duration(milliseconds: 200));
 
     telemetry.reset();
 
     controller.setPlaying();
+    controller.setResumed(position: const Duration(milliseconds: 300));
     controller.setBuffering();
     await Future<void>.delayed(const Duration(milliseconds: 300));
-    controller.setResumed(position: const Duration(seconds: 2));
+    controller.setResumed(position: const Duration(milliseconds: 400));
     await Future<void>.delayed(const Duration(milliseconds: 1));
 
     expect(telemetry.stallCount, 1); // only the post-reset stall
