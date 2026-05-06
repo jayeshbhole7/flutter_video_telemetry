@@ -12,3 +12,6 @@ dependencies:
   video_player: ^2.8.0
   video_telemetry:
     path: ../
+
+flutter:
+  uses-material-design: true
