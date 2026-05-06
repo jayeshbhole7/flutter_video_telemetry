@@ -3,4 +3,5 @@ export 'src/models/segment_switch_event.dart';
 export 'src/models/stall_event.dart';
 export 'src/models/telemetry_snapshot.dart';
 export 'src/telemetry_config.dart';
+export 'src/ui/telemetry_overlay.dart';
 export 'src/video_telemetry.dart';
