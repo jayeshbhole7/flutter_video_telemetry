@@ -2,7 +2,7 @@ name: video_telemetry
 description: >-
   A metrics layer for VideoPlayerController. Measures time-to-first-frame,
   buffer stalls, rebuffering ratio, and segment switches safely.
-version: 0.1.2
+version: 0.1.3
 homepage: https://github.com/jayeshbhole7/flutter_video_telemetry
 repository: https://github.com/jayeshbhole7/flutter_video_telemetry
 issue_tracker: https://github.com/jayeshbhole7/flutter_video_telemetry/issues

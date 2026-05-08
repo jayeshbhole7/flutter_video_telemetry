@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3
+
+- Fix README image rendering on pub.dev by using the absolute GitHub blob URL with `?raw=true`.
+
 ## 0.1.2
 
 - Bundle the demo GIF locally (`screenshots/metrics.gif`) so it renders correctly under `pub.dev`'s strict Content Security Policy.

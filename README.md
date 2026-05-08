@@ -7,7 +7,7 @@ A metrics layer that wraps any `VideoPlayerController` and exposes real playback
 
 It attaches **on top of** `video_player` — not instead of it. Your player works exactly as before.
 
-![metrics](screenshots/metrics.gif)
+![metrics](https://github.com/jayeshbhole7/flutter_video_telemetry/blob/main/screenshots/metrics.gif?raw=true)
 
 ---
 
@@ -36,7 +36,7 @@ print(telemetry.rebufferingRatio); // 0.032 → 3.2% of watch time was stalls
 ```yaml
 dependencies:
   video_player: ^2.8.0
-  video_telemetry: ^0.1.0
+  video_telemetry: ^0.1.3
 ```
 
 ---
