@@ -1,5 +1,3 @@
-<img width="410" height="864" alt="metrics" src="https://github.com/user-attachments/assets/65dd486d-482a-426a-8b8b-934627186f41" />
-
 # video_telemetry
 
 [![pub.dev](https://img.shields.io/pub/v/video_telemetry.svg)](https://pub.dev/packages/video_telemetry)
@@ -9,8 +7,7 @@ A metrics layer that wraps any `VideoPlayerController` and exposes real playback
 
 It attaches **on top of** `video_player` — not instead of it. Your player works exactly as before.
 
-| ![Screenshot](screenshots/image.png) | ![metrics](https://github.com/user-attachments/assets/39e54dc1-4521-4c8c-93ab-d45aabd841f7) |
-|:---:|:---:|
+![metrics](https://github.com/user-attachments/assets/65dd486d-482a-426a-8b8b-934627186f41)
 
 ---
 
