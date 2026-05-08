@@ -7,7 +7,7 @@ A metrics layer that wraps any `VideoPlayerController` and exposes real playback
 
 It attaches **on top of** `video_player` — not instead of it. Your player works exactly as before.
 
-![metrics](https://github.com/user-attachments/assets/65dd486d-482a-426a-8b8b-934627186f41)
+![metrics](screenshots/metrics.gif)
 
 ---
 
