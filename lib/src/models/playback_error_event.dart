@@ -3,6 +3,7 @@ import 'package:meta/meta.dart';
 /// Describes a playback error surfaced by the underlying video player.
 @immutable
 class PlaybackErrorEvent {
+  /// Creates a [PlaybackErrorEvent] to record playback errors.
   const PlaybackErrorEvent({
     required this.timestamp,
     required this.position,

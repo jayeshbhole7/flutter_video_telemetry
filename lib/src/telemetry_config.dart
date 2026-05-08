@@ -2,6 +2,7 @@
 ///
 /// All fields have production-ready defaults. Override only what you need.
 class TelemetryConfig {
+  /// Creates a [TelemetryConfig] with the specified thresholds and intervals.
   const TelemetryConfig({
     this.minimumStallDuration = const Duration(milliseconds: 200),
     this.pollingInterval = const Duration(milliseconds: 100),

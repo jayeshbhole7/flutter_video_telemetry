@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 /// or let later code guess. hacky fix for now.
 @immutable
 class SegmentSwitchEvent {
+  /// Creates a [SegmentSwitchEvent] detailing a change in media quality or bitrate.
   const SegmentSwitchEvent({
     required this.timestamp,
     required this.position,

@@ -6,6 +6,7 @@ import 'package:meta/meta.dart';
 /// seek cleanup comes later; refactor this later if it gets weird.
 @immutable
 class StallEvent {
+  /// Creates a [StallEvent] that represents a buffering interruption.
   const StallEvent({
     required this.timestamp,
     required this.position,
