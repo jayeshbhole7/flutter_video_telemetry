@@ -7,8 +7,7 @@ A metrics layer that wraps any `VideoPlayerController` and exposes real playback
 
 It attaches **on top of** `video_player` — not instead of it. Your player works exactly as before.
 
-<!-- markdownlint-disable-next-line MD033 -->
-<img src="screenshots/image.png" height="500" alt="Screenshot" /> <video src="https://github.com/user-attachments/assets/f3e4ca31-dfaf-49c2-9ac1-2e0d4ab64d9b" height="500" controls></video>
+![metrics](https://github.com/user-attachments/assets/65dd486d-482a-426a-8b8b-934627186f41)
 
 ---
 

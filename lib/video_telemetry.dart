@@ -1,3 +1,6 @@
+/// A metrics layer for wrapping `VideoPlayerController` and exposing real playback performance data.
+library video_telemetry;
+
 export 'src/models/playback_error_event.dart';
 export 'src/models/segment_switch_event.dart';
 export 'src/models/stall_event.dart';
