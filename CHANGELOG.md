@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.2
+
+- Bundle the demo GIF locally (`screenshots/metrics.gif`) so it renders correctly under `pub.dev`'s strict Content Security Policy.
+
+## 0.1.1
+
+- Fix `pub.dev` score issues:
+  - Add missing dartdoc comments for models and config.
+  - Shorten package description to meet the 180-character limit.
+  - Update `README.md` to use standard markdown for images rather than HTML tags so they display properly on pub.dev.
+
 ## 0.1.0
 
 Initial release.
