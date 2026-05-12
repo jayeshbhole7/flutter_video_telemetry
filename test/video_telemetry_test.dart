@@ -5,7 +5,7 @@ import 'package:video_telemetry/video_telemetry.dart';
 // fake controller, no platform channel junk.
 class FakeVideoPlayerController extends VideoPlayerController {
   FakeVideoPlayerController()
-    : super.networkUrl(Uri.parse('https://fake.test/video.mp4'));
+      : super.networkUrl(Uri.parse('https://fake.test/video.mp4'));
 
   VideoPlayerValue _fakeValue = const VideoPlayerValue(
     duration: Duration(minutes: 5),
@@ -466,11 +466,14 @@ void main() {
 
   group('dispose', () {
     test('is idempotent', () {
-      expect(() {
-        telemetry.dispose();
-        telemetry.dispose();
-        telemetry.dispose();
-      }, returnsNormally,);
+      expect(
+        () {
+          telemetry.dispose();
+          telemetry.dispose();
+          telemetry.dispose();
+        },
+        returnsNormally,
+      );
     });
 
     test('stops emitting events after dispose', () async {
@@ -560,42 +563,42 @@ void main() {
     });
   });
   group('reset', () {
-  test('clears all metrics and histories', () async {
-    controller.setPlaying();
-    controller.setResumed(position: const Duration(milliseconds: 100));
-    controller.setBuffering();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    controller.setResumed(position: const Duration(milliseconds: 200));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
+    test('clears all metrics and histories', () async {
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 100));
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 200));
+      await Future<void>.delayed(const Duration(milliseconds: 1));
 
-    expect(telemetry.stallCount, 1);
+      expect(telemetry.stallCount, 1);
 
-    telemetry.reset();
+      telemetry.reset();
 
-    expect(telemetry.stallCount, 0);
-    expect(telemetry.totalStallDuration, Duration.zero);
-    expect(telemetry.seekCount, 0);
-    expect(telemetry.timeToFirstFrame, isNull);
-    expect(telemetry.stallHistory, isEmpty);
+      expect(telemetry.stallCount, 0);
+      expect(telemetry.totalStallDuration, Duration.zero);
+      expect(telemetry.seekCount, 0);
+      expect(telemetry.timeToFirstFrame, isNull);
+      expect(telemetry.stallHistory, isEmpty);
+    });
+
+    test('continues recording after reset', () async {
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 100));
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 200));
+
+      telemetry.reset();
+
+      controller.setPlaying();
+      controller.setResumed(position: const Duration(milliseconds: 300));
+      controller.setBuffering();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      controller.setResumed(position: const Duration(milliseconds: 400));
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      expect(telemetry.stallCount, 1); // only the post-reset stall
+    });
   });
-
-  test('continues recording after reset', () async {
-    controller.setPlaying();
-    controller.setResumed(position: const Duration(milliseconds: 100));
-    controller.setBuffering();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    controller.setResumed(position: const Duration(milliseconds: 200));
-
-    telemetry.reset();
-
-    controller.setPlaying();
-    controller.setResumed(position: const Duration(milliseconds: 300));
-    controller.setBuffering();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    controller.setResumed(position: const Duration(milliseconds: 400));
-    await Future<void>.delayed(const Duration(milliseconds: 1));
-
-    expect(telemetry.stallCount, 1); // only the post-reset stall
-  });
-});
 }

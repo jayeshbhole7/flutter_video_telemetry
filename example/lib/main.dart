@@ -111,7 +111,9 @@ class _RealAppScreenState extends State<RealAppScreen> {
       if (mounted) setState(() => _snapshot = _telemetry.snapshot);
     });
 
-    _controller.addListener(() { if (mounted) setState(() {}); });
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
     _controller.initialize().then((_) {
       if (mounted) {
         setState(() {});
@@ -163,7 +165,6 @@ class _RealAppScreenState extends State<RealAppScreen> {
               ],
             ),
           ),
-
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Column(
@@ -200,8 +201,8 @@ class _RealAppScreenState extends State<RealAppScreen> {
                       ),
                       onPressed: val.isInitialized
                           ? () => val.isPlaying
-                                ? _controller.pause()
-                                : _controller.play()
+                              ? _controller.pause()
+                              : _controller.play()
                           : null,
                     ),
                     IconButton(
@@ -217,8 +218,7 @@ class _RealAppScreenState extends State<RealAppScreen> {
               ],
             ),
           ),
-
-          ],
+        ],
       ),
     );
   }
@@ -273,25 +273,21 @@ class _TelemetryOverlay extends StatelessWidget {
             const SizedBox(height: 5),
             const Divider(height: 1, color: Colors.white10),
             const SizedBox(height: 5),
-
-            _row('TTFF',
-                ttff != null ? '${ttff.inMilliseconds}ms' : 'N/A',
+            _row('TTFF', ttff != null ? '${ttff.inMilliseconds}ms' : 'N/A',
                 alert: ttff != null && ttff.inMilliseconds > 2000),
             _row('Stalls', '${snapshot.stallCount}',
                 alert: snapshot.stallCount > 0),
-            _row('Stall time',
-                '${snapshot.totalStallDuration.inMilliseconds}ms',
+            _row(
+                'Stall time', '${snapshot.totalStallDuration.inMilliseconds}ms',
                 alert: snapshot.totalStallDuration.inMilliseconds > 0),
             _row('Rebuffering', snapshot.rebufferingPercent,
                 alert: snapshot.rebufferingRatio > 0.02),
             _row('Avg stall',
                 '${snapshot.averageStallDuration.inMilliseconds}ms'),
             _row('Seeks', '${snapshot.seekCount}'),
-            _row('Stalls/min',
-                snapshot.stallsPerMinute.toStringAsFixed(1),
+            _row('Stalls/min', snapshot.stallsPerMinute.toStringAsFixed(1),
                 alert: snapshot.stallsPerMinute > 1),
             _row('Switches', '${snapshot.segmentSwitchCount}'),
-
             if (stalling) ...[
               const SizedBox(height: 5),
               Container(
@@ -468,8 +464,12 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
       if (mounted) setState(() => _latest = snap);
     }));
 
-    _controller.addListener(() { if (mounted) setState(() {}); });
-    _controller.initialize().then((_) { if (mounted) setState(() {}); });
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+    _controller.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _simulateStall() async {
@@ -505,7 +505,9 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
   @override
   void dispose() {
     _slowMode = false;
-    for (final s in _subs) { s.cancel(); }
+    for (final s in _subs) {
+      s.cancel();
+    }
     _telemetry.dispose();
     _controller.dispose();
     super.dispose();
@@ -540,8 +542,8 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
                   heroTag: 'play2',
                   onPressed: val.isInitialized
                       ? () => val.isPlaying
-                            ? _controller.pause()
-                            : _controller.play()
+                          ? _controller.pause()
+                          : _controller.play()
                       : null,
                   child: Icon(
                     val.isPlaying ? Icons.pause : Icons.play_arrow,
@@ -558,9 +560,7 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
                 FilledButton.tonalIcon(
                   onPressed: _toggleSlowMode,
                   icon: Icon(
-                    _slowMode
-                        ? Icons.stop_circle_outlined
-                        : Icons.repeat,
+                    _slowMode ? Icons.stop_circle_outlined : Icons.repeat,
                     size: 18,
                   ),
                   label: Text(
@@ -574,7 +574,8 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
                       toBitrateKbps: 2400,
                       reason: 'manual',
                     );
-                    _log_('Quality switched: 800 -> 2400kbps', LogLevel.segment);
+                    _log_(
+                        'Quality switched: 800 -> 2400kbps', LogLevel.segment);
                   },
                   icon: const Icon(Icons.hd_outlined, size: 18),
                   label: const Text('Switch Quality'),
@@ -711,8 +712,8 @@ class _HealthPanel extends StatelessWidget {
                     '${snapshot.averageStallDuration.inMilliseconds}ms'),
                 _stat('Seeks', '${snapshot.seekCount}'),
                 _stat('Quality changes', '${snapshot.segmentSwitchCount}'),
-                _stat('Freezes/min',
-                    snapshot.stallsPerMinute.toStringAsFixed(1),
+                _stat(
+                    'Freezes/min', snapshot.stallsPerMinute.toStringAsFixed(1),
                     orange: snapshot.stallsPerMinute > 1),
               ],
             ),

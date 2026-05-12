@@ -22,7 +22,6 @@ class PlaybackErrorEvent {
   final String? errorDescription;
 
   @override
-  String toString() =>
-      'PlaybackErrorEvent(pos: ${position.inMilliseconds}ms, '
+  String toString() => 'PlaybackErrorEvent(pos: ${position.inMilliseconds}ms, '
       'error: $errorDescription)';
 }
