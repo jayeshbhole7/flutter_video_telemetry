@@ -60,7 +60,6 @@ class TelemetrySnapshot {
   /// Recent segment switch events, bounded by the configured segmentSwitchHistoryCapacity.
   final List<SegmentSwitchEvent> segmentSwitchHistory;
 
-
   /// Stalls per minute of effective play time.
   /// Returns 0.0 when no playback has occurred.
   double get stallsPerMinute {
@@ -70,10 +69,12 @@ class TelemetrySnapshot {
   }
 
   /// True when at least one metric indicates degraded playback.
-  bool get hasQualityIssues => rebufferingRatio > 0.02 || stallCount > 2 || stallsPerMinute > 1.0;
+  bool get hasQualityIssues =>
+      rebufferingRatio > 0.02 || stallCount > 2 || stallsPerMinute > 1.0;
 
   /// Percentage representation of [rebufferingRatio], rounded to 2 decimals.
-  String get rebufferingPercent => '${(rebufferingRatio * 100).toStringAsFixed(2)}%';
+  String get rebufferingPercent =>
+      '${(rebufferingRatio * 100).toStringAsFixed(2)}%';
 
   @override
   String toString() => 'TelemetrySnapshot('

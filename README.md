@@ -36,7 +36,7 @@ print(telemetry.rebufferingRatio); // 0.032 → 3.2% of watch time was stalls
 ```yaml
 dependencies:
   video_player: ^2.8.0
-  video_telemetry: ^0.1.3
+  video_telemetry: ^0.1.4
 ```
 
 ---

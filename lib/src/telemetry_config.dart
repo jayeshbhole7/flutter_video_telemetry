@@ -11,11 +11,11 @@ class TelemetryConfig {
     this.stallHistoryCapacity = 50,
     this.segmentSwitchHistoryCapacity = 20,
     this.enableDebugLogging = false,
-  }) : assert(stallHistoryCapacity > 0, 'stallHistoryCapacity must be > 0'),
-       assert(
-         segmentSwitchHistoryCapacity > 0,
-         'segmentSwitchHistoryCapacity must be > 0',
-       );
+  })  : assert(stallHistoryCapacity > 0, 'stallHistoryCapacity must be > 0'),
+        assert(
+          segmentSwitchHistoryCapacity > 0,
+          'segmentSwitchHistoryCapacity must be > 0',
+        );
 
   /// Stalls shorter than this threshold are silently ignored.
   ///

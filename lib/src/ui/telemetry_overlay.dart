@@ -16,7 +16,7 @@ class TelemetryOverlay extends StatelessWidget {
   });
 
   final TelemetrySnapshot snapshot;
-  
+
   // Customization flags
   final bool showTtff;
   final bool showStalls;
@@ -59,36 +59,44 @@ class TelemetryOverlay extends StatelessWidget {
               style: TextStyle(color: Colors.white38, fontSize: 9),
             ),
             const Divider(height: 8, color: Colors.white10),
-            
             if (showTtff)
-              _row('TTFF', ttff != null ? '${ttff.inMilliseconds}ms' : '—',
-                  alert: ttff != null && ttff.inMilliseconds > 2000,),
-            
+              _row(
+                'TTFF',
+                ttff != null ? '${ttff.inMilliseconds}ms' : '—',
+                alert: ttff != null && ttff.inMilliseconds > 2000,
+              ),
             if (showStalls)
-              _row('Stalls', '${snapshot.stallCount}',
-                  alert: snapshot.stallCount > 0,),
-            
+              _row(
+                'Stalls',
+                '${snapshot.stallCount}',
+                alert: snapshot.stallCount > 0,
+              ),
             if (showStallTime)
-              _row('Stall time', '${snapshot.totalStallDuration.inMilliseconds}ms',
-                  alert: snapshot.totalStallDuration.inMilliseconds > 0,),
-            
+              _row(
+                'Stall time',
+                '${snapshot.totalStallDuration.inMilliseconds}ms',
+                alert: snapshot.totalStallDuration.inMilliseconds > 0,
+              ),
             if (showRebufferingRatio)
-              _row('Rebuffering', snapshot.rebufferingPercent,
-                  alert: snapshot.rebufferingRatio > 0.02,),
-            
+              _row(
+                'Rebuffering',
+                snapshot.rebufferingPercent,
+                alert: snapshot.rebufferingRatio > 0.02,
+              ),
             if (showAverageStall)
-              _row('Avg stall', '${snapshot.averageStallDuration.inMilliseconds}ms'),
-            
-            if (showSeeks)
-              _row('Seeks', '${snapshot.seekCount}'),
-            
+              _row(
+                'Avg stall',
+                '${snapshot.averageStallDuration.inMilliseconds}ms',
+              ),
+            if (showSeeks) _row('Seeks', '${snapshot.seekCount}'),
             if (showStallsPerMinute)
-              _row('Stalls/min', snapshot.stallsPerMinute.toStringAsFixed(1),
-                  alert: snapshot.stallsPerMinute > 1,),
-            
+              _row(
+                'Stalls/min',
+                snapshot.stallsPerMinute.toStringAsFixed(1),
+                alert: snapshot.stallsPerMinute > 1,
+              ),
             if (showSwitches)
               _row('Switches', '${snapshot.segmentSwitchCount}'),
-            
             if (stalling) ...[
               const SizedBox(height: 4),
               Container(
@@ -97,7 +105,8 @@ class TelemetryOverlay extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: Colors.orange.withValues(alpha: 0.5)),
+                  border:
+                      Border.all(color: Colors.orange.withValues(alpha: 0.5)),
                 ),
                 child: const Text(
                   'STALLING',

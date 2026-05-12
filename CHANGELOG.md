@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Now support for all platforms (Android, iOS, Linux, macOS, Web, and Windows).
+- Resolve minor analyzer lints and formatting issues for improved code quality.
+
 ## 0.1.3
 
 - Fix README image rendering on pub.dev by using the absolute GitHub blob URL with `?raw=true`.

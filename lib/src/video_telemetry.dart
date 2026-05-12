@@ -21,8 +21,8 @@ class VideoTelemetry {
   VideoTelemetry._(
     VideoPlayerController controller, {
     required TelemetryConfig config,
-  }) : _controller = controller,
-       _config = config {
+  })  : _controller = controller,
+        _config = config {
     _attach();
   }
 
@@ -184,8 +184,7 @@ class VideoTelemetry {
               .round(),
     );
     final isLoopReset = _detectLoopReset(previous, current);
-    final isSeek =
-        !isLoopReset &&
+    final isSeek = !isLoopReset &&
         absPositionDelta > maxNormalDelta &&
         absPositionDelta > _config.seekJumpThreshold;
 
@@ -328,11 +327,13 @@ class VideoTelemetry {
 
   StreamSubscription<PlaybackErrorEvent> onError(
     void Function(PlaybackErrorEvent) callback,
-  ) => errorStream.listen(callback);
+  ) =>
+      errorStream.listen(callback);
 
   StreamSubscription<SegmentSwitchEvent> onSegmentSwitch(
     void Function(SegmentSwitchEvent) callback,
-  ) => segmentSwitchStream.listen(callback);
+  ) =>
+      segmentSwitchStream.listen(callback);
 
   // metrics
 
@@ -373,19 +374,19 @@ class VideoTelemetry {
   }
 
   TelemetrySnapshot get snapshot => TelemetrySnapshot(
-    capturedAt: DateTime.now(),
-    timeToFirstFrame: timeToFirstFrame,
-    stallCount: stallCount,
-    totalStallDuration: totalStallDuration,
-    rebufferingRatio: rebufferingRatio,
-    averageStallDuration: averageStallDuration,
-    seekCount: seekCount,
-    segmentSwitchCount: segmentSwitchCount,
-    isCurrentlyStalling: isCurrentlyStalling,
-    effectivePlayDuration: _currentActivePlay,
-    stallHistory: stallHistory,
-    segmentSwitchHistory: segmentSwitchHistory,
-  );
+        capturedAt: DateTime.now(),
+        timeToFirstFrame: timeToFirstFrame,
+        stallCount: stallCount,
+        totalStallDuration: totalStallDuration,
+        rebufferingRatio: rebufferingRatio,
+        averageStallDuration: averageStallDuration,
+        seekCount: seekCount,
+        segmentSwitchCount: segmentSwitchCount,
+        isCurrentlyStalling: isCurrentlyStalling,
+        effectivePlayDuration: _currentActivePlay,
+        stallHistory: stallHistory,
+        segmentSwitchHistory: segmentSwitchHistory,
+      );
 
   // tiny helpers
 
