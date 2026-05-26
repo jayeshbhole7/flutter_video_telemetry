@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- **Architectural Refactor:**
+  - Removed explicit dependency on `video_player`. The core telemetry package is now 100% agnostic to any specific video player implementation.
+  - Replaced `VideoPlayerController` dependency with a robust interface abstraction (`TelemetryPlayerObserver`).
+  - Added adapter pattern logic, meaning you can adopt this package for *any* Video Player (like `media_kit`, `just_audio`, or native bridges). View the example to see the `video_player` adapter implementation.
+- Overhauled test infrastructure to prevent native platform channel conflicts during headless CI testing.
+
 ## 0.1.4
 
 - Now support for all platforms (Android, iOS, Linux, macOS, Web, and Windows).

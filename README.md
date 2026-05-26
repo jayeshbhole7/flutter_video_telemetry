@@ -3,9 +3,9 @@
 [![pub.dev](https://img.shields.io/pub/v/video_telemetry.svg)](https://pub.dev/packages/video_telemetry)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-A metrics layer that wraps any `VideoPlayerController` and exposes real playback performance data — stalls, buffering ratio, time-to-first-frame, and more.
+A metrics layer that wraps any video player (via a simple observer adapter) and exposes real playback performance data — stalls, buffering ratio, time-to-first-frame, and more.
 
-It attaches **on top of** `video_player` — not instead of it. Your player works exactly as before.
+It attaches **on top of** your player without needing the specific player plugin directly.
 
 ![metrics](https://github.com/jayeshbhole7/flutter_video_telemetry/blob/main/screenshots/metrics.gif?raw=true)
 
@@ -16,9 +16,11 @@ It attaches **on top of** `video_player` — not instead of it. Your player work
 ```dart
 import 'package:video_player/video_player.dart';
 import 'package:video_telemetry/video_telemetry.dart';
+import 'video_player_observer.dart'; // Bring your own adapter (e.g. from the example folder)
 
 final controller = VideoPlayerController.networkUrl(Uri.parse(url));
-final telemetry = VideoTelemetry.wrap(controller);
+final observer = VideoPlayerObserver(controller);
+final telemetry = VideoTelemetry.wrap(observer);
 
 await controller.initialize();
 await controller.play();
@@ -35,9 +37,10 @@ print(telemetry.rebufferingRatio); // 0.032 → 3.2% of watch time was stalls
 
 ```yaml
 dependencies:
-  video_player: ^2.8.0
-  video_telemetry: ^0.1.4
+  video_telemetry: ^0.2.0
 ```
+
+*Note: You supply an implementation of `TelemetryPlayerObserver` wrapping your player (e.g. `video_player`, `media_kit`, etc.). Check the example for a `VideoPlayerObserver` implementation!*
 
 ---
 
@@ -45,7 +48,7 @@ dependencies:
 
 ### Contents
 
-- [Wrap a controller](#wrap-a-controller)
+- [Wrap a player](#wrap-a-player)
 - [Dispose](#dispose)
 - [Listen to stalls](#listen-to-stalls)
 - [Listen to first frame](#listen-to-first-frame)
@@ -60,12 +63,12 @@ dependencies:
 
 ---
 
-### Wrap a controller
+### Wrap a player
 
-Pass any `VideoPlayerController` to `VideoTelemetry.wrap`. The controller can be uninitialized, paused, or already playing.
+Pass any `TelemetryPlayerObserver` implementation to `VideoTelemetry.wrap`. The underlying player can be uninitialized, paused, or already playing.
 
 ```dart
-final telemetry = VideoTelemetry.wrap(controller);
+final telemetry = VideoTelemetry.wrap(observer);
 ```
 
 > **Note:** For accurate Time-to-First-Frame (TTFF), call `wrap()` before `initialize()`. If the controller is already playing when `wrap()` is called, TTFF will be unavailable for that session.

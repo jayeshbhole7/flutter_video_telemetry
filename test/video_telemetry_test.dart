@@ -1,97 +1,140 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:video_player/video_player.dart';
 import 'package:video_telemetry/video_telemetry.dart';
 
-// fake controller, no platform channel junk.
-class FakeVideoPlayerController extends VideoPlayerController {
-  FakeVideoPlayerController()
-      : super.networkUrl(Uri.parse('https://fake.test/video.mp4'));
+class FakeState {
+  const FakeState({
+    this.isPlaying = false,
+    this.isBuffering = false,
+    this.isInitialized = true,
+    this.position = Duration.zero,
+    this.hasError = false,
+    this.errorDescription,
+  });
 
-  VideoPlayerValue _fakeValue = const VideoPlayerValue(
-    duration: Duration(minutes: 5),
-  );
+  final bool isPlaying;
+  final bool isBuffering;
+  final bool isInitialized;
+  final Duration position;
+  final bool hasError;
+  final String? errorDescription;
+  final Duration duration = const Duration(minutes: 5);
+  final double playbackSpeed = 1.0;
+
+  FakeState copyWith({
+    bool? isPlaying,
+    bool? isBuffering,
+    bool? isInitialized,
+    Duration? position,
+    bool? hasError,
+    String? errorDescription,
+  }) {
+    return FakeState(
+      isPlaying: isPlaying ?? this.isPlaying,
+      isBuffering: isBuffering ?? this.isBuffering,
+      isInitialized: isInitialized ?? this.isInitialized,
+      position: position ?? this.position,
+      hasError: hasError ?? this.hasError,
+      errorDescription: errorDescription ?? this.errorDescription,
+    );
+  }
+}
+
+// fake controller, no platform channel junk.
+class FakePlayerObserver extends ChangeNotifier
+    implements TelemetryPlayerObserver {
+  FakeState _fakeValue = const FakeState();
 
   @override
-  VideoPlayerValue get value => _fakeValue;
+  bool get isPlaying => _fakeValue.isPlaying;
+  @override
+  bool get isBuffering => _fakeValue.isBuffering;
+  @override
+  bool get isInitialized => _fakeValue.isInitialized;
+  @override
+  Duration get position => _fakeValue.position;
+  @override
+  Duration? get duration => _fakeValue.duration;
+  @override
+  bool get hasError => _fakeValue.hasError;
+  @override
+  String? get errorDescription => _fakeValue.errorDescription;
+  @override
+  double get playbackSpeed => _fakeValue.playbackSpeed;
 
-  void setValue(VideoPlayerValue next) {
+  void setValue(FakeState next) {
     _fakeValue = next;
     notifyListeners();
   }
 
   void setPlaying({bool buffering = false, Duration? position}) {
     setValue(
-      value.copyWith(
+      _fakeValue.copyWith(
         isInitialized: true,
         isPlaying: true,
         isBuffering: buffering,
-        position: position ?? value.position,
+        position: position, // handles null logic later if needed
       ),
     );
   }
 
   void setPaused({Duration? position}) {
     setValue(
-      value.copyWith(
+      _fakeValue.copyWith(
         isInitialized: true,
         isPlaying: false,
         isBuffering: false,
-        position: position ?? value.position,
+        position: position,
       ),
     );
   }
 
   void setBuffering() {
-    setValue(value.copyWith(isPlaying: true, isBuffering: true));
+    setValue(_fakeValue.copyWith(isPlaying: true, isBuffering: true));
   }
 
   void setResumed({Duration? position}) {
     setValue(
-      value.copyWith(
+      _fakeValue.copyWith(
         isPlaying: true,
         isBuffering: false,
-        position: position ?? value.position,
+        position: position,
       ),
     );
   }
 
   void setError(String description) {
-    setValue(VideoPlayerValue.erroneous(description));
-  }
-
-  @override
-  Future<void> initialize() async {}
-
-  @override
-  // ignore: must_call_super
-  Future<void> dispose() async {
-    notifyListeners();
+    setValue(
+      const FakeState(hasError: true).copyWith(
+        errorDescription: description,
+      ),
+    );
   }
 }
 
-VideoPlayerValue _base({
+FakeState _base({
   bool isInitialized = true,
   bool isPlaying = false,
   bool isBuffering = false,
   Duration position = Duration.zero,
   String? errorDescription,
 }) {
-  return VideoPlayerValue(
-    duration: const Duration(minutes: 5),
+  return FakeState(
     isInitialized: isInitialized,
     isPlaying: isPlaying,
     isBuffering: isBuffering,
     position: position,
+    hasError: errorDescription != null,
     errorDescription: errorDescription,
   );
 }
 
 void main() {
-  late FakeVideoPlayerController controller;
+  late FakePlayerObserver controller;
   late VideoTelemetry telemetry;
 
   setUp(() {
-    controller = FakeVideoPlayerController();
+    controller = FakePlayerObserver();
     controller.setValue(_base());
     telemetry = VideoTelemetry.wrap(
       controller,
@@ -143,7 +186,7 @@ void main() {
     });
 
     test('ttffAvailable is false when wrapped while playing', () {
-      final controller2 = FakeVideoPlayerController();
+      final controller2 = FakePlayerObserver();
       controller2.setValue(_base(isPlaying: true));
       final t2 = VideoTelemetry.wrap(controller2);
       addTearDown(t2.dispose);
@@ -350,7 +393,7 @@ void main() {
     });
 
     test('backward seek increments seek count', () {
-      final seekController = FakeVideoPlayerController();
+      final seekController = FakePlayerObserver();
       seekController.setValue(
         _base(isPlaying: true, position: const Duration(milliseconds: 700)),
       );
@@ -371,7 +414,7 @@ void main() {
 
   group('loop detection', () {
     test('loop reset is not counted as a seek', () {
-      final loopController = FakeVideoPlayerController();
+      final loopController = FakePlayerObserver();
       loopController.setValue(
         _base(
           isPlaying: true,
