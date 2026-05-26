@@ -5,9 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:video_telemetry/video_telemetry.dart';
 
+import 'video_player_observer.dart';
+
 void main() => runApp(const TelemetryExampleApp());
 
+/// The root example application showcasing [VideoTelemetry] usage.
 class TelemetryExampleApp extends StatelessWidget {
+  /// Create the example app.
   const TelemetryExampleApp({super.key});
 
   @override
@@ -71,9 +75,10 @@ class _RootScreenState extends State<_RootScreen> {
   }
 }
 
-// Tab 1: Real App
-// Demonstrates what the package looks like in a production environment.
+/// Tab 1: Real App
+/// Demonstrates what the package looks like in a production environment.
 class RealAppScreen extends StatefulWidget {
+  /// Create the real app demo.
   const RealAppScreen({super.key});
 
   @override
@@ -98,7 +103,7 @@ class _RealAppScreenState extends State<RealAppScreen> {
 
     // Initialize telemetry wrapper
     _telemetry = VideoTelemetry.wrap(
-      _controller,
+      VideoPlayerObserver(_controller),
       config: const TelemetryConfig(snapshotInterval: Duration(seconds: 1)),
     );
     _telemetry.snapshotStream.listen((snap) {
@@ -338,77 +343,10 @@ class _TelemetryOverlay extends StatelessWidget {
   }
 }
 
-// Dummy data for "Up next" list
-// class _VideoThumbnailItem extends StatelessWidget {
-//   const _VideoThumbnailItem({required this.index});
-
-//   final int index;
-
-//   static const _titles = [
-//     'Elephants Dream',
-//     'Tears of Steel',
-//     'Cosmos Laundromat',
-//   ];
-
-//   static const _durations = ['10:54', '12:14', '12:10'];
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-//       child: Row(
-//         children: [
-//           Container(
-//             width: 120,
-//             height: 68,
-//             decoration: BoxDecoration(
-//               color: const Color(0xFF2A2A2A),
-//               borderRadius: BorderRadius.circular(6),
-//             ),
-//             child: const Center(
-//               child: Icon(
-//                 Icons.play_circle_outline,
-//                 color: Colors.white24,
-//                 size: 28,
-//               ),
-//             ),
-//           ),
-//           const SizedBox(width: 12),
-//           Expanded(
-//             child: Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Text(
-//                   _titles[index],
-//                   style: const TextStyle(
-//                     fontSize: 13,
-//                     fontWeight: FontWeight.w500,
-//                   ),
-//                 ),
-//                 const SizedBox(height: 4),
-//                 Text(
-//                   'Blender Foundation · ${_durations[index]}',
-//                   style: TextStyle(
-//                     fontSize: 11,
-//                     color: Colors.grey.shade500,
-//                   ),
-//                 ),
-//               ],
-//             ),
-//           ),
-//           IconButton(
-//             icon: Icon(Icons.more_vert, color: Colors.grey.shade600, size: 20),
-//             onPressed: () {},
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
-
-// Tab 2: Showcase
-// Contains the deterministic failure demo for package documentation.
+/// Tab 2: Showcase
+/// Contains the deterministic failure demo for package documentation.
 class ShowcaseScreen extends StatefulWidget {
+  /// Create the showcase screen.
   const ShowcaseScreen({super.key});
 
   @override
@@ -434,7 +372,7 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
       ),
     );
     _telemetry = VideoTelemetry.wrap(
-      _controller,
+      VideoPlayerObserver(_controller),
       config: const TelemetryConfig(snapshotInterval: Duration(seconds: 1)),
     );
 

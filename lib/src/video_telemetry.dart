@@ -1,36 +1,68 @@
 // ignore_for_file: avoid_print
 import 'dart:async';
 
-import 'package:video_player/video_player.dart';
-
 import 'models/playback_error_event.dart';
 import 'models/segment_switch_event.dart';
 import 'models/stall_event.dart';
 import 'models/telemetry_snapshot.dart';
+import 'player_observer.dart';
 import 'telemetry_config.dart';
 import 'utils/ring_buffer.dart';
 
-/// wraps a [VideoPlayerController] and tracks playback metrics.
+class _ObserverState {
+  const _ObserverState({
+    required this.isPlaying,
+    required this.isBuffering,
+    required this.isInitialized,
+    required this.position,
+    required this.duration,
+    required this.hasError,
+    required this.playbackSpeed,
+    this.errorDescription,
+  });
+
+  final bool isPlaying;
+  final bool isBuffering;
+  final bool isInitialized;
+  final Duration position;
+  final Duration? duration;
+  final bool hasError;
+  final String? errorDescription;
+  final double playbackSpeed;
+
+  bool isIdenticalTo(_ObserverState other) {
+    return isPlaying == other.isPlaying &&
+        isBuffering == other.isBuffering &&
+        isInitialized == other.isInitialized &&
+        position == other.position &&
+        duration == other.duration &&
+        hasError == other.hasError &&
+        errorDescription == other.errorDescription &&
+        playbackSpeed == other.playbackSpeed;
+  }
+}
+
+/// wraps a [TelemetryPlayerObserver] and tracks playback metrics.
 ///
 /// ```dart
-/// final telemetry = VideoTelemetry.wrap(controller);
+/// final telemetry = VideoTelemetry.wrap(observer);
 /// // player still does its thing
 /// telemetry.dispose(); // clean it up in dispose()
 /// ```
 class VideoTelemetry {
   VideoTelemetry._(
-    VideoPlayerController controller, {
+    TelemetryPlayerObserver observer, {
     required TelemetryConfig config,
-  })  : _controller = controller,
+  })  : _observer = observer,
         _config = config {
     _attach();
   }
 
-  final VideoPlayerController _controller;
+  final TelemetryPlayerObserver _observer;
   final TelemetryConfig _config;
 
   bool _disposed = false;
-  VideoPlayerValue? _lastValue;
+  _ObserverState? _lastValue;
 
   // phase 6 - ttff
   bool _wrappedWhilePlaying = false;
@@ -75,34 +107,47 @@ class VideoTelemetry {
 
   // factory
 
-  /// wraps [controller] with telemetry.
+  /// wraps [observer] with telemetry.
   static VideoTelemetry wrap(
-    VideoPlayerController controller, {
+    TelemetryPlayerObserver observer, {
     TelemetryConfig config = const TelemetryConfig(),
   }) {
-    return VideoTelemetry._(controller, config: config);
+    return VideoTelemetry._(observer, config: config);
   }
 
   // lifecycle
 
-  void _attach() {
-    _lastValue = _controller.value;
+  _ObserverState _getObserverState() {
+    return _ObserverState(
+      isPlaying: _observer.isPlaying,
+      isBuffering: _observer.isBuffering,
+      isInitialized: _observer.isInitialized,
+      position: _observer.position,
+      duration: _observer.duration,
+      hasError: _observer.hasError,
+      errorDescription: _observer.errorDescription,
+      playbackSpeed: _observer.playbackSpeed,
+    );
+  }
 
-    if (_controller.value.isPlaying) {
+  void _attach() {
+    _lastValue = _getObserverState();
+
+    if (_lastValue!.isPlaying) {
       _wrappedWhilePlaying = true;
       _playStartedAt = DateTime.now();
-      if (_controller.value.isInitialized && !_controller.value.isBuffering) {
+      if (_lastValue!.isInitialized && !_lastValue!.isBuffering) {
         _activePlayWindowStart = DateTime.now();
       }
       _debugLog('wrapped while playing - TTFF unavailable');
     }
 
-    _controller.addListener(_onValueChanged);
+    _observer.addListener(_onValueChanged);
 
     _pollTimer = Timer.periodic(_config.pollingInterval, (_) {
       if (_disposed) return;
-      final current = _controller.value;
-      if (!identical(current, _lastValue)) {
+      final current = _getObserverState();
+      if (!_lastValue!.isIdenticalTo(current)) {
         _processValue(current);
       }
     });
@@ -117,10 +162,10 @@ class VideoTelemetry {
 
   void _onValueChanged() {
     if (_disposed) return;
-    _processValue(_controller.value);
+    _processValue(_getObserverState());
   }
 
-  void _processValue(VideoPlayerValue current) {
+  void _processValue(_ObserverState current) {
     final previous = _lastValue;
     _lastValue = current;
     if (previous == null) return;
@@ -248,7 +293,7 @@ class VideoTelemetry {
     _pollTimer?.cancel();
     _snapshotTimer?.cancel();
     try {
-      _controller.removeListener(_onValueChanged);
+      _observer.removeListener(_onValueChanged);
     } catch (_) {}
     _stallSC.close();
     _ttffSC.close();
@@ -297,7 +342,7 @@ class VideoTelemetry {
     _playStartedAt = null;
     _firstFrameAt = null;
     _stallStartedAt = null;
-    _lastValue = _controller.value;
+    _lastValue = _getObserverState();
     _stallHistory.clear();
     _segmentHistory.clear();
     _debugLog('session reset');
@@ -394,16 +439,16 @@ class VideoTelemetry {
     if (!sc.isClosed) sc.add(event);
   }
 
-  bool _detectLoopReset(VideoPlayerValue previous, VideoPlayerValue current) {
+  bool _detectLoopReset(_ObserverState previous, _ObserverState current) {
     final duration = current.duration;
-    if (duration == Duration.zero) return false;
+    if (duration == null || duration == Duration.zero) return false;
     return previous.position >= duration * 0.95 &&
         current.position <= duration * 0.05;
   }
 
   Duration get _safePosition {
     try {
-      return _controller.value.position;
+      return _observer.position;
     } catch (_) {
       return Duration.zero;
     }
